@@ -52,6 +52,7 @@ rocket-frontend = ["rocket", "serde_urlencoded"]
 
 [dev-dependencies]
 reqwest = "^0.9"
+env_logger = "0.6"
 
 [[example]]
 name = "actix"
