@@ -1,14 +1,14 @@
-use primitives::issuer::TokenMap;
 use primitives::generator::RandomGenerator;
-use primitives::grant::{Grant, Extensions};
+use primitives::grant::{Extensions, Grant};
+use primitives::issuer::TokenMap;
 use primitives::scope::Scope;
 
 use frontends::simple::endpoint::resource_flow;
 
-use chrono::{Utc, Duration};
+use chrono::{Duration, Utc};
 
-use super::CraftedRequest;
 use super::defaults::*;
+use super::CraftedRequest;
 
 struct ResourceSetup {
     issuer: TokenMap<RandomGenerator>,
@@ -25,32 +25,38 @@ impl ResourceSetup {
         // Ensure that valid tokens are 16 bytes long, so we can craft an invalid one
         let mut issuer = TokenMap::new(RandomGenerator::new(16));
 
-        let authtoken = issuer.issue(Grant {
-            client_id: EXAMPLE_CLIENT_ID.to_string(),
-            owner_id: EXAMPLE_OWNER_ID.to_string(),
-            redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
-            scope: "legit needed andmore".parse().unwrap(),
-            until: Utc::now() + Duration::hours(1),
-            extensions: Extensions::new(),
-        }).unwrap();
+        let authtoken = issuer
+            .issue(Grant {
+                client_id: EXAMPLE_CLIENT_ID.to_string(),
+                owner_id: EXAMPLE_OWNER_ID.to_string(),
+                redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
+                scope: "legit needed andmore".parse().unwrap(),
+                until: Utc::now() + Duration::hours(1),
+                extensions: Extensions::new(),
+            })
+            .unwrap();
 
-        let wrong_scope_token = issuer.issue(Grant {
-            client_id: EXAMPLE_CLIENT_ID.to_string(),
-            owner_id: EXAMPLE_OWNER_ID.to_string(),
-            redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
-            scope: "wrong needed".parse().unwrap(),
-            until: Utc::now() + Duration::hours(1),
-            extensions: Extensions::new(),
-        }).unwrap();
+        let wrong_scope_token = issuer
+            .issue(Grant {
+                client_id: EXAMPLE_CLIENT_ID.to_string(),
+                owner_id: EXAMPLE_OWNER_ID.to_string(),
+                redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
+                scope: "wrong needed".parse().unwrap(),
+                until: Utc::now() + Duration::hours(1),
+                extensions: Extensions::new(),
+            })
+            .unwrap();
 
-        let small_scope_token = issuer.issue(Grant {
-            client_id: EXAMPLE_CLIENT_ID.to_string(),
-            owner_id: EXAMPLE_OWNER_ID.to_string(),
-            redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
-            scope: "legit".parse().unwrap(),
-            until: Utc::now() + Duration::hours(1),
-            extensions: Extensions::new(),
-        }).unwrap();
+        let small_scope_token = issuer
+            .issue(Grant {
+                client_id: EXAMPLE_CLIENT_ID.to_string(),
+                owner_id: EXAMPLE_OWNER_ID.to_string(),
+                redirect_uri: EXAMPLE_REDIRECT_URI.parse().unwrap(),
+                scope: "legit".parse().unwrap(),
+                until: Utc::now() + Duration::hours(1),
+                extensions: Extensions::new(),
+            })
+            .unwrap();
 
         ResourceSetup {
             issuer,
@@ -94,7 +100,7 @@ fn resource_no_authorization() {
     let no_authorization = CraftedRequest {
         query: None,
         urlbody: None,
-        auth: None
+        auth: None,
     };
 
     ResourceSetup::new().test_access_error(no_authorization);
@@ -106,7 +112,7 @@ fn resource_invalid_token() {
     let invalid_token = CraftedRequest {
         query: None,
         urlbody: None,
-        auth: Some("Bearer ThisisnotavalidtokenTooLong".to_string())
+        auth: Some("Bearer ThisisnotavalidtokenTooLong".to_string()),
     };
 
     ResourceSetup::new().test_access_error(invalid_token);

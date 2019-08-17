@@ -8,8 +8,8 @@
 use std::collections::HashMap;
 use std::sync::{MutexGuard, RwLockWriteGuard};
 
-use super::grant::Grant;
 use super::generator::TagGrant;
+use super::grant::Grant;
 
 /// Authorizers create and manage authorization codes.
 ///
@@ -29,12 +29,11 @@ pub trait Authorizer {
 /// This authorizer saves a mapping of generated strings to their associated grants. The generator
 /// is itself trait based and can be chosen during construction. It is assumed to not be possible
 /// for two different grants to generate the same token in the issuer.
-pub struct AuthMap<I: TagGrant=Box<dyn TagGrant + Send + Sync + 'static>> {
+pub struct AuthMap<I: TagGrant = Box<dyn TagGrant + Send + Sync + 'static>> {
     tagger: I,
     usage: u64,
-    tokens: HashMap<String, Grant>
+    tokens: HashMap<String, Grant>,
 }
-
 
 impl<I: TagGrant> AuthMap<I> {
     /// Create an authorizer generating tokens with the `tagger`.
@@ -115,8 +114,8 @@ impl<I: TagGrant> Authorizer for AuthMap<I> {
 pub mod tests {
     use super::*;
     use chrono::Utc;
-    use primitives::grant::Extensions;
     use primitives::generator::{Assertion, RandomGenerator};
+    use primitives::grant::Extensions;
 
     /// Tests some invariants that should be upheld by all authorizers.
     ///
@@ -131,9 +130,11 @@ pub mod tests {
             extensions: Extensions::new(),
         };
 
-        let token = authorizer.authorize(grant.clone())
+        let token = authorizer
+            .authorize(grant.clone())
             .expect("Authorization should not fail here");
-        let recovered_grant = authorizer.extract(&token)
+        let recovered_grant = authorizer
+            .extract(&token)
             .expect("Primitive failed extracting grant")
             .expect("Could not extract grant for valid token");
 
@@ -146,7 +147,8 @@ pub mod tests {
         }
 
         // Authorize the same token again.
-        let token_again = authorizer.authorize(grant.clone())
+        let token_again = authorizer
+            .authorize(grant.clone())
             .expect("Authorization should not fail here");
         // We don't produce the same token twice.
         assert_ne!(token, token_again);
@@ -160,11 +162,13 @@ pub mod tests {
 
     #[test]
     fn signing_test_suite() {
-        use ring::hmac::SigningKey;
         use ring::digest::SHA256;
+        use ring::hmac::SigningKey;
 
-        let assertion_token_instance = Assertion::new(
-            SigningKey::new(&SHA256, b"7EGgy8zManReq9l/ez0AyYE+xPpcTbssgW+8gBnIv3s="));
+        let assertion_token_instance = Assertion::new(SigningKey::new(
+            &SHA256,
+            b"7EGgy8zManReq9l/ez0AyYE+xPpcTbssgW+8gBnIv3s=",
+        ));
         let mut storage = AuthMap::new(assertion_token_instance);
         simple_test_suite(&mut storage);
     }

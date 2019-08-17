@@ -11,10 +11,10 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{Arc, RwLock};
 
-use iron::{headers, modifiers, IronResult, Request, Response};
+use self::reqwest::header;
 use iron::middleware::Handler;
 use iron::status::Status;
-use self::reqwest::header;
+use iron::{headers, modifiers, IronResult, Request, Response};
 
 /// Rough client function mirroring core functionality of an oauth client. This is not actually
 /// needed in your implementation but merely exists to provide an interactive example. It will
@@ -30,17 +30,23 @@ pub fn dummy_client() -> impl Handler + 'static {
     let get_state = Arc::new(State::default());
     let endpoint_state = get_state.clone();
     let mut router = router::Router::new();
-    router.get("/endpoint", move |request: &mut Request| endpoint(get_state.clone(), request), "endpoint");
-    router.get("/", move |request: &mut Request| view(endpoint_state.clone(), request), "view");
+    router.get(
+        "/endpoint",
+        move |request: &mut Request| endpoint(get_state.clone(), request),
+        "endpoint",
+    );
+    router.get(
+        "/",
+        move |request: &mut Request| view(endpoint_state.clone(), request),
+        "view",
+    );
     router
 }
 
 /// Receive the authorization codes at 'http://localhost:8021/endpoint'.
 fn endpoint(state: Arc<State>, req: &mut Request) -> IronResult<Response> {
     // Check the received parameters in the input
-    let query = req.url.as_ref()
-        .query_pairs()
-        .collect::<HashMap<_, _>>();
+    let query = req.url.as_ref().query_pairs().collect::<HashMap<_, _>>();
 
     if let Some(error) = query.get("error") {
         let message = format!("Error during owner authorization: {}", error.as_ref());
@@ -49,7 +55,7 @@ fn endpoint(state: Arc<State>, req: &mut Request) -> IronResult<Response> {
 
     let code = match query.get("code") {
         None => return Ok(Response::with((Status::BadRequest, "Missing code"))),
-        Some(v) => v.clone()
+        Some(v) => v.clone(),
     };
 
     // Construct a request against http://localhost:8020/token, the access token endpoint
@@ -61,17 +67,29 @@ fn endpoint(state: Arc<State>, req: &mut Request) -> IronResult<Response> {
     params.insert("redirect_uri", "http://localhost:8021/endpoint");
     let access_token_request = client
         .post("http://localhost:8020/token")
-        .form(&params).build().unwrap();
+        .form(&params)
+        .build()
+        .unwrap();
     let mut token_response = match client.execute(access_token_request) {
         Ok(response) => response,
-        Err(_) => return Ok(Response::with((Status::InternalServerError, "Could not fetch bearer token"))),
+        Err(_) => {
+            return Ok(Response::with((
+                Status::InternalServerError,
+                "Could not fetch bearer token",
+            )))
+        }
     };
 
     let mut token = String::new();
     token_response.read_to_string(&mut token).unwrap();
     let token_map: HashMap<String, String> = match serde_json::from_str(&token) {
         Ok(response) => response,
-        Err(err) => return Ok(Response::with((Status::BadRequest, format!("Could not parse token response {:?}", err)))),
+        Err(err) => {
+            return Ok(Response::with((
+                Status::BadRequest,
+                format!("Could not parse token response {:?}", err),
+            )))
+        }
     };
 
     if token_map.get("error").is_some() {
@@ -112,11 +130,17 @@ fn view(state: Arc<State>, _: &mut Request) -> IronResult<Response> {
     let page_request = client
         .get("http://localhost:8020/")
         .header(header::AUTHORIZATION, format!("Bearer {}", token))
-        .build().unwrap();
+        .build()
+        .unwrap();
 
     let mut page_response = match client.execute(page_request) {
         Ok(response) => response,
-        Err(_) => return Ok(Response::with((Status::BadRequest, "Could not access protected resource"))),
+        Err(_) => {
+            return Ok(Response::with((
+                Status::BadRequest,
+                "Could not access protected resource",
+            )))
+        }
     };
 
     let mut protected_page = String::new();

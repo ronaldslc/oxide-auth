@@ -1,4 +1,4 @@
-use primitives::registrar::{BoundClient, ClientUrl, Registrar, RegistrarError, PreGrant};
+use primitives::registrar::{BoundClient, ClientUrl, PreGrant, Registrar, RegistrarError};
 use primitives::scope::Scope;
 
 use super::super::actix::{Handler, Message};
@@ -20,9 +20,9 @@ impl Message for BoundRedirect {
 pub struct Negotiate {
     /// The client (and redirect uri) requesting the grant.
     pub client: BoundClient<'static>,
-    
+
     /// Scope if one has been requested.
-    pub scope: Option<Scope>
+    pub scope: Option<Scope>,
 }
 
 impl Message for Negotiate {
@@ -63,6 +63,7 @@ impl<R: Registrar + 'static> Handler<Check> for AsActor<R> {
     type Result = Result<(), RegistrarError>;
 
     fn handle(&mut self, msg: Check, _: &mut Self::Context) -> Self::Result {
-        self.0.check(&msg.client, msg.passphrase.as_ref().map(Vec::as_slice))
+        self.0
+            .check(&msg.client, msg.passphrase.as_ref().map(Vec::as_slice))
     }
 }

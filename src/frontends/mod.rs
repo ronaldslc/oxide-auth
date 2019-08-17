@@ -184,15 +184,15 @@ pub mod simple;
 pub mod actix;
 #[cfg(feature = "iron-frontend")]
 pub mod iron;
-#[cfg(feature = "rouille-frontend")]
-pub mod rouille;
 #[cfg(feature = "rocket-frontend")]
 pub mod rocket;
+#[cfg(feature = "rouille-frontend")]
+pub mod rouille;
 
 /// Includes useful for writing frontends.
 pub mod dev {
+    pub use endpoint::{Endpoint, WebRequest, WebResponse};
+    pub use endpoint::{NormalizedParameter, OAuthError, OwnerSolicitor, QueryParameter};
     pub use std::borrow::Cow;
     pub use url::Url;
-    pub use endpoint::{Endpoint, WebRequest, WebResponse};
-    pub use endpoint::{OAuthError, OwnerSolicitor, NormalizedParameter, QueryParameter};
 }

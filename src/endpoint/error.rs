@@ -32,12 +32,13 @@ pub enum OAuthError {
 impl fmt::Display for OAuthError {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            OAuthError::DenySilently => fmt.write_str("OAuthError: Request should be silently denied"),
+            OAuthError::DenySilently => {
+                fmt.write_str("OAuthError: Request should be silently denied")
+            }
             OAuthError::PrimitiveError => fmt.write_str("OAuthError: Server component failed"),
             OAuthError::BadRequest => fmt.write_str("OAuthError: Bad request"),
         }
     }
 }
 
-impl error::Error for OAuthError {
-}
+impl error::Error for OAuthError {}

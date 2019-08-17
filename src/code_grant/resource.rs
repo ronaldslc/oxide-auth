@@ -4,8 +4,8 @@ use std::fmt;
 
 use chrono::Utc;
 
-use primitives::issuer::Issuer;
 use primitives::grant::Grant;
+use primitives::issuer::Issuer;
 use primitives::scope::Scope;
 
 /// Gives additional information about the reason for an access failure.
@@ -112,22 +112,16 @@ pub fn protect(handler: &mut dyn Endpoint, req: &dyn Request) -> Result<Grant> {
     };
 
     if !req.valid() {
-        return Err(Error::InvalidRequest {
-            authenticate
-        });
+        return Err(Error::InvalidRequest { authenticate });
     }
 
     let token = match req.token() {
         Some(token) => token,
-        None => return Err(Error::NoAuthentication {
-            authenticate,
-        }),
+        None => return Err(Error::NoAuthentication { authenticate }),
     };
 
     if !token.starts_with(BEARER_START) {
-        return Err(Error::InvalidRequest {
-            authenticate,
-        })
+        return Err(Error::InvalidRequest { authenticate });
     }
 
     let token = &token[BEARER_START.len()..];
@@ -135,12 +129,14 @@ pub fn protect(handler: &mut dyn Endpoint, req: &dyn Request) -> Result<Grant> {
     let grant = match handler.issuer().recover_token(token) {
         Err(()) => return Err(Error::PrimitiveError),
         Ok(Some(grant)) => grant,
-        Ok(None) => return Err(Error::AccessDenied {
-            failure: AccessFailure {
-                code: Some(ErrorCode::InvalidRequest),
-            },
-            authenticate,
-        }),
+        Ok(None) => {
+            return Err(Error::AccessDenied {
+                failure: AccessFailure {
+                    code: Some(ErrorCode::InvalidRequest),
+                },
+                authenticate,
+            })
+        }
     };
 
     if grant.until < Utc::now() {
@@ -153,8 +149,11 @@ pub fn protect(handler: &mut dyn Endpoint, req: &dyn Request) -> Result<Grant> {
     }
 
     // Test if any of the possible allowed scopes is included in the grant
-    if !handler.scopes().iter()
-        .any(|resource_scope| resource_scope.allow_access(&grant.scope)) {
+    if !handler
+        .scopes()
+        .iter()
+        .any(|resource_scope| resource_scope.allow_access(&grant.scope))
+    {
         return Err(Error::AccessDenied {
             failure: AccessFailure {
                 code: Some(ErrorCode::InsufficientScope),
@@ -205,14 +204,17 @@ impl BearerHeader {
 
 impl Authenticate {
     fn extend_header(self, header: &mut BearerHeader) {
-        self.realm.map(|realm| header.add_option(format_args!("realm=\"{}\"", realm)));
-        self.scope.map(|scope| header.add_option(format_args!("scope=\"{}\"", scope)));
+        self.realm
+            .map(|realm| header.add_option(format_args!("realm=\"{}\"", realm)));
+        self.scope
+            .map(|scope| header.add_option(format_args!("scope=\"{}\"", scope)));
     }
 }
 
 impl AccessFailure {
     fn extend_header(self, header: &mut BearerHeader) {
-        self.code.map(|code| header.add_option(format_args!("error=\"{}\"", code.description())));
+        self.code
+            .map(|code| header.add_option(format_args!("error=\"{}\"", code.description())));
     }
 }
 
@@ -221,16 +223,19 @@ impl Error {
     pub(crate) fn www_authenticate(self) -> String {
         let mut header = BearerHeader::new();
         match self {
-            Error::AccessDenied { failure, authenticate, } => {
+            Error::AccessDenied {
+                failure,
+                authenticate,
+            } => {
                 failure.extend_header(&mut header);
                 authenticate.extend_header(&mut header);
-            },
-            Error::NoAuthentication { authenticate, } => {
+            }
+            Error::NoAuthentication { authenticate } => {
                 authenticate.extend_header(&mut header);
-            },
-            Error::InvalidRequest { authenticate, } => {
+            }
+            Error::InvalidRequest { authenticate } => {
                 authenticate.extend_header(&mut header);
-            },
+            }
             Error::PrimitiveError => (),
         }
         header.finalize()

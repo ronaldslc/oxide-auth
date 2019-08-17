@@ -1,12 +1,10 @@
-use std::str::from_utf8;
 use std::marker::PhantomData;
+use std::str::from_utf8;
 
 use code_grant::accesstoken::{
-    access_token,
-    Error as TokenError,
-    Extension,
-    Endpoint as TokenEndpoint,
-    Request as TokenRequest};
+    access_token, Endpoint as TokenEndpoint, Error as TokenError, Extension,
+    Request as TokenRequest,
+};
 
 use super::*;
 
@@ -16,14 +14,18 @@ use super::*;
 /// directly contact the OAuth endpoint–authenticating itself–to receive the access
 /// token. The token is then used as authorization in requests to the resource. This
 /// request MUST be protected by TLS.
-pub struct AccessTokenFlow<E, R> where E: Endpoint<R>, R: WebRequest {
+pub struct AccessTokenFlow<E, R>
+where
+    E: Endpoint<R>,
+    R: WebRequest,
+{
     endpoint: WrappedToken<E, R>,
 }
 
 struct WrappedToken<E: Endpoint<R>, R: WebRequest> {
-    inner: E, 
+    inner: E,
     extension_fallback: (),
-    r_type: PhantomData<R>, 
+    r_type: PhantomData<R>,
 }
 
 struct WrappedRequest<'a, R: WebRequest + 'a> {
@@ -49,7 +51,11 @@ enum FailParse<E> {
 
 struct Authorization(String, Vec<u8>);
 
-impl<E, R> AccessTokenFlow<E, R> where E: Endpoint<R>, R: WebRequest {
+impl<E, R> AccessTokenFlow<E, R>
+where
+    E: Endpoint<R>,
+    R: WebRequest,
+{
     /// Check that the endpoint supports the necessary operations for handling requests.
     ///
     /// Binds the endpoint to a particular type of request that it supports, for many
@@ -58,7 +64,7 @@ impl<E, R> AccessTokenFlow<E, R> where E: Endpoint<R>, R: WebRequest {
     /// ## Panics
     ///
     /// Indirectly `execute` may panic when this flow is instantiated with an inconsistent
-    /// endpoint, for details see the documentation of `Endpoint` and `execute`. For 
+    /// endpoint, for details see the documentation of `Endpoint` and `execute`. For
     /// consistent endpoints, the panic is instead caught as an error here.
     pub fn prepare(mut endpoint: E) -> Result<Self, E::Error> {
         if endpoint.registrar().is_none() {
@@ -77,7 +83,7 @@ impl<E, R> AccessTokenFlow<E, R> where E: Endpoint<R>, R: WebRequest {
             endpoint: WrappedToken {
                 inner: endpoint,
                 extension_fallback: (),
-                r_type: PhantomData
+                r_type: PhantomData,
             },
         })
     }
@@ -86,54 +92,70 @@ impl<E, R> AccessTokenFlow<E, R> where E: Endpoint<R>, R: WebRequest {
     ///
     /// ## Panics
     ///
-    /// When the registrar, authorizer, or issuer returned by the endpoint is suddenly 
+    /// When the registrar, authorizer, or issuer returned by the endpoint is suddenly
     /// `None` when previously it was `Some(_)`.
     pub fn execute(&mut self, mut request: R) -> Result<R::Response, E::Error> {
-        let issued = access_token(
-            &mut self.endpoint,
-            &WrappedRequest::new(&mut request));
+        let issued = access_token(&mut self.endpoint, &WrappedRequest::new(&mut request));
 
         let token = match issued {
             Err(error) => return token_error(&mut self.endpoint.inner, &mut request, error),
             Ok(token) => token,
         };
 
-        let mut response = self.endpoint.inner.response(&mut request, InnerTemplate::Ok.into())?;
-        response.body_json(&token.to_json())
+        let mut response = self
+            .endpoint
+            .inner
+            .response(&mut request, InnerTemplate::Ok.into())?;
+        response
+            .body_json(&token.to_json())
             .map_err(|err| self.endpoint.inner.web_error(err))?;
         Ok(response)
     }
 }
 
-fn token_error<E: Endpoint<R>, R: WebRequest>(endpoint: &mut E, request: &mut R, error: TokenError)
-    -> Result<R::Response, E::Error> 
-{
+fn token_error<E: Endpoint<R>, R: WebRequest>(
+    endpoint: &mut E,
+    request: &mut R,
+    error: TokenError,
+) -> Result<R::Response, E::Error> {
     Ok(match error {
         TokenError::Invalid(mut json) => {
-            let mut response = endpoint.response(request, InnerTemplate::BadRequest {
-                access_token_error: Some(json.description()),
-            }.into())?;
-            response.client_error()
-                .map_err(|err| endpoint.web_error(err))?;
-            response.body_json(&json.to_json())
+            let mut response = endpoint.response(
+                request,
+                InnerTemplate::BadRequest {
+                    access_token_error: Some(json.description()),
+                }
+                .into(),
+            )?;
+            response
+                .client_error()
                 .map_err(|err| endpoint.web_error(err))?;
             response
-        },
-        TokenError::Unauthorized(mut json, scheme) =>{
-            let mut response = endpoint.response(request, InnerTemplate::Unauthorized {
-                error: None,
-                access_token_error: Some(json.description()),
-            }.into())?;
-            response.unauthorized(&scheme)
-                .map_err(|err| endpoint.web_error(err))?;
-            response.body_json(&json.to_json())
+                .body_json(&json.to_json())
                 .map_err(|err| endpoint.web_error(err))?;
             response
-        },
+        }
+        TokenError::Unauthorized(mut json, scheme) => {
+            let mut response = endpoint.response(
+                request,
+                InnerTemplate::Unauthorized {
+                    error: None,
+                    access_token_error: Some(json.description()),
+                }
+                .into(),
+            )?;
+            response
+                .unauthorized(&scheme)
+                .map_err(|err| endpoint.web_error(err))?;
+            response
+                .body_json(&json.to_json())
+                .map_err(|err| endpoint.web_error(err))?;
+            response
+        }
         TokenError::Primitive(_) => {
             // FIXME: give the context for restoration.
-            return Err(endpoint.error(OAuthError::PrimitiveError))
-        },
+            return Err(endpoint.error(OAuthError::PrimitiveError));
+        }
     })
 }
 
@@ -151,7 +173,8 @@ impl<E: Endpoint<R>, R: WebRequest> TokenEndpoint for WrappedToken<E, R> {
     }
 
     fn extension(&mut self) -> &mut dyn Extension {
-        self.inner.extension()
+        self.inner
+            .extension()
             .and_then(super::Extension::access_token)
             .unwrap_or(&mut self.extension_fallback)
     }
@@ -159,8 +182,7 @@ impl<E: Endpoint<R>, R: WebRequest> TokenEndpoint for WrappedToken<E, R> {
 
 impl<'a, R: WebRequest + 'a> WrappedRequest<'a, R> {
     pub fn new(request: &'a mut R) -> Self {
-        Self::new_or_fail(request)
-            .unwrap_or_else(Self::from_err)
+        Self::new_or_fail(request).unwrap_or_else(Self::from_err)
     }
 
     fn new_or_fail(request: &'a mut R) -> Result<Self, FailParse<R::Error>> {
@@ -191,7 +213,7 @@ impl<'a, R: WebRequest + 'a> WrappedRequest<'a, R> {
     fn parse_header(header: Cow<str>) -> Result<Authorization, Invalid> {
         let authorization = {
             if !header.starts_with("Basic ") {
-                return Err(Invalid)
+                return Err(Invalid);
             }
 
             let combined = match base64::decode(&header[6..]) {
@@ -231,7 +253,8 @@ impl<'a, R: WebRequest> TokenRequest for WrappedRequest<'a, R> {
     }
 
     fn authorization(&self) -> Option<(Cow<str>, Cow<[u8]>)> {
-        self.authorization.as_ref()
+        self.authorization
+            .as_ref()
             .map(|auth| (auth.0.as_str().into(), auth.1.as_slice().into()))
     }
 

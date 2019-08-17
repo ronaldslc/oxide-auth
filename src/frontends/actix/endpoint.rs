@@ -1,5 +1,5 @@
 //! Provides a configurable actor with the functionality of a code grant frontend.
-use endpoint::{AuthorizationFlow, AccessTokenFlow, ResourceFlow};
+use endpoint::{AccessTokenFlow, AuthorizationFlow, ResourceFlow};
 use endpoint::{Endpoint, WebRequest};
 use primitives::grant::Grant;
 
@@ -14,10 +14,10 @@ impl<P: 'static> Actor for AsActor<P> {
     type Context = Context<Self>;
 }
 
-impl<W, P, E> Handler<AuthorizationCode<W>> for AsActor<P> 
-where 
-    W: WebRequest<Error=E> + Send + Sync + 'static,
-    P: Endpoint<W, Error=E> + 'static,
+impl<W, P, E> Handler<AuthorizationCode<W>> for AsActor<P>
+where
+    W: WebRequest<Error = E> + Send + Sync + 'static,
+    P: Endpoint<W, Error = E> + 'static,
     W::Response: Send + Sync + 'static,
     E: Send + Sync + 'static,
 {
@@ -28,10 +28,10 @@ where
     }
 }
 
-impl<W, P, E> Handler<AccessToken<W>> for AsActor<P> 
-where 
-    W: WebRequest<Error=E> + Send + Sync + 'static,
-    P: Endpoint<W, Error=E> + 'static,
+impl<W, P, E> Handler<AccessToken<W>> for AsActor<P>
+where
+    W: WebRequest<Error = E> + Send + Sync + 'static,
+    P: Endpoint<W, Error = E> + 'static,
     W::Response: Send + Sync + 'static,
     E: Send + Sync + 'static,
 {
@@ -42,10 +42,10 @@ where
     }
 }
 
-impl<W, P, E> Handler<Resource<W>> for AsActor<P> 
-where 
-    W: WebRequest<Error=E> + Send + Sync + 'static,
-    P: Endpoint<W, Error=E> + 'static,
+impl<W, P, E> Handler<Resource<W>> for AsActor<P>
+where
+    W: WebRequest<Error = E> + Send + Sync + 'static,
+    P: Endpoint<W, Error = E> + 'static,
     W::Response: Send + Sync + 'static,
     E: Send + Sync + 'static,
 {

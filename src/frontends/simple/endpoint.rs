@@ -12,10 +12,10 @@ use primitives::issuer::Issuer;
 use primitives::registrar::Registrar;
 use primitives::scope::Scope;
 
-use endpoint::{AccessTokenFlow, AuthorizationFlow, ResourceFlow};
-use endpoint::{Endpoint, OAuthError, PreGrant, Template, Scopes};
-use endpoint::{OwnerConsent, OwnerSolicitor};
 use endpoint::WebRequest;
+use endpoint::{AccessTokenFlow, AuthorizationFlow, ResourceFlow};
+use endpoint::{Endpoint, OAuthError, PreGrant, Scopes, Template};
+use endpoint::{OwnerConsent, OwnerSolicitor};
 
 /// Errors either caused by the underlying web types or the library.
 #[derive(Debug)]
@@ -55,7 +55,7 @@ pub enum Error<W: WebRequest> {
 /// from a list of registered clients, its likely cleaner to provide your own [`Endpoint`]
 /// implementation instead.
 ///
-/// ## Example 
+/// ## Example
 ///
 /// Here is an example where a `Generic` is used to set up an endpoint that is filled with the
 /// minimal members to be useable for an [`AccessTokenFlow`].
@@ -72,7 +72,7 @@ pub enum Error<W: WebRequest> {
 ///     registrar::ClientMap,
 /// };
 ///
-/// fn access_token_endpoint<R: WebRequest>() -> AccessTokenFlow<impl Endpoint<R>, R> 
+/// fn access_token_endpoint<R: WebRequest>() -> AccessTokenFlow<impl Endpoint<R>, R>
 ///     where R::Response: Default,
 /// {
 ///     let endpoint = Generic {
@@ -94,7 +94,7 @@ pub enum Error<W: WebRequest> {
 /// [`AccessTokenFlow`]: ../../../endpoint/struct.AccessTokenFlow.html
 /// [`ResourceFlow`]: ../../../endpoint/struct.ResourceFlow.html
 /// [`ResourceFlow`]: ../../../endpoint/trait.Scopes.html
-pub struct Generic<R, A, I, S=Vacant, C=Vacant, L=Vacant> {
+pub struct Generic<R, A, I, S = Vacant, C = Vacant, L = Vacant> {
     /// The registrar implementation, or `Vacant` if it is not necesary.
     pub registrar: R,
 
@@ -106,7 +106,7 @@ pub struct Generic<R, A, I, S=Vacant, C=Vacant, L=Vacant> {
 
     /// A solicitor implementation fit for the request types, or `Vacant` if it is not necesary.
     pub solicitor: S,
-    
+
     /// Determine scopes for the request types, or `Vacant` if this does not protect resources.
     pub scopes: C,
 
@@ -172,7 +172,7 @@ pub struct ApprovedGrant {
 /// independent of the lifetime of `&self`. This leads to some annoying implementation constraints,
 /// similar to how you can not implement an `Iterator<&'_ mut Item>` whose items (i.e. `next`
 /// method) borrow the iterator. Only in this case the lifetime trouble is hidden behind the
-/// automatically inferred lifetime, as `AsRef<Trait>` actually refers to 
+/// automatically inferred lifetime, as `AsRef<Trait>` actually refers to
 /// `AsRef<(Trait + 'static)`. But `as_ref` should have unsugared signature:
 ///
 /// > `fn opt_ref<'a>(&'a self) -> Option<&'a (Trait + 'a)>`
@@ -193,7 +193,7 @@ pub trait OptRegistrar {
 /// independent of the lifetime of `&self`. This leads to some annoying implementation constraints,
 /// similar to how you can not implement an `Iterator<&'_ mut Item>` whose items (i.e. `next`
 /// method) borrow the iterator. Only in this case the lifetime trouble is hidden behind the
-/// automatically inferred lifetime, as `AsMut<Trait>` actually refers to 
+/// automatically inferred lifetime, as `AsMut<Trait>` actually refers to
 /// `AsMut<(Trait + 'static)`. But `opt_mut` should have unsugared signature:
 ///
 /// > `fn opt_mut<'a>(&'a mut self) -> Option<&'a mut (Trait + 'a)>`
@@ -214,7 +214,7 @@ pub trait OptAuthorizer {
 /// independent of the lifetime of `&self`. This leads to some annoying implementation constraints,
 /// similar to how you can not implement an `Iterator<&'_ mut Item>` whose items (i.e. `next`
 /// method) borrow the iterator. Only in this case the lifetime trouble is hidden behind the
-/// automatically inferred lifetime, as `AsMut<Trait>` actually refers to 
+/// automatically inferred lifetime, as `AsMut<Trait>` actually refers to
 /// `AsMut<(Trait + 'static)`. But `opt_mut` should have unsugared signature:
 ///
 /// > `fn opt_mut<'a>(&'a mut self) -> Option<&'a mut (Trait + 'a)>`
@@ -233,21 +233,40 @@ pub trait ResponseCreator<W: WebRequest> {
     fn create(&mut self, request: &mut W, kind: Template) -> W::Response;
 }
 
-type Authorization<'a, W> = Generic<&'a (dyn Registrar + 'a), &'a mut(dyn Authorizer + 'a), Vacant, &'a mut(dyn OwnerSolicitor<W> + 'a), Vacant, Vacant>;
-type AccessToken<'a> = Generic<&'a (dyn Registrar + 'a), &'a mut(dyn Authorizer + 'a), &'a mut(dyn Issuer + 'a), Vacant, Vacant, Vacant>;
+type Authorization<'a, W> = Generic<
+    &'a (dyn Registrar + 'a),
+    &'a mut (dyn Authorizer + 'a),
+    Vacant,
+    &'a mut (dyn OwnerSolicitor<W> + 'a),
+    Vacant,
+    Vacant,
+>;
+type AccessToken<'a> = Generic<
+    &'a (dyn Registrar + 'a),
+    &'a mut (dyn Authorizer + 'a),
+    &'a mut (dyn Issuer + 'a),
+    Vacant,
+    Vacant,
+    Vacant,
+>;
 type Resource<'a> = Generic<Vacant, Vacant, &'a mut (dyn Issuer + 'a), Vacant, &'a [Scope], Vacant>;
 
 /// Create an ad-hoc authorization flow.
 ///
 /// Since all necessary primitives are expected in the function syntax, this is guaranteed to never
-/// fail or panic, compared to preparing one with `AuthorizationFlow`. 
+/// fail or panic, compared to preparing one with `AuthorizationFlow`.
 ///
 /// But this is not as versatile and extensible, so it should be used with care.  The fact that it
 /// only takes references is a conscious choice to maintain forwards portability while encouraging
 /// the transition to custom `Endpoint` implementations instead.
-pub fn authorization_flow<'a, W>(registrar: &'a dyn Registrar, authorizer: &'a mut dyn Authorizer, solicitor: &'a mut dyn OwnerSolicitor<W>)
-    -> AuthorizationFlow<Authorization<'a, W>, W>
-    where W: WebRequest, W::Response: Default
+pub fn authorization_flow<'a, W>(
+    registrar: &'a dyn Registrar,
+    authorizer: &'a mut dyn Authorizer,
+    solicitor: &'a mut dyn OwnerSolicitor<W>,
+) -> AuthorizationFlow<Authorization<'a, W>, W>
+where
+    W: WebRequest,
+    W::Response: Default,
 {
     let flow = AuthorizationFlow::prepare(Generic {
         registrar,
@@ -267,14 +286,19 @@ pub fn authorization_flow<'a, W>(registrar: &'a dyn Registrar, authorizer: &'a m
 /// Create an ad-hoc access token flow.
 ///
 /// Since all necessary primitives are expected in the function syntax, this is guaranteed to never
-/// fail or panic, compared to preparing one with `AccessTokenFlow`. 
+/// fail or panic, compared to preparing one with `AccessTokenFlow`.
 ///
 /// But this is not as versatile and extensible, so it should be used with care.  The fact that it
 /// only takes references is a conscious choice to maintain forwards portability while encouraging
 /// the transition to custom `Endpoint` implementations instead.
-pub fn access_token_flow<'a, W>(registrar: &'a dyn Registrar, authorizer: &'a mut dyn Authorizer, issuer: &'a mut dyn Issuer) 
-    -> AccessTokenFlow<AccessToken<'a>, W>
-    where W: WebRequest, W::Response: Default
+pub fn access_token_flow<'a, W>(
+    registrar: &'a dyn Registrar,
+    authorizer: &'a mut dyn Authorizer,
+    issuer: &'a mut dyn Issuer,
+) -> AccessTokenFlow<AccessToken<'a>, W>
+where
+    W: WebRequest,
+    W::Response: Default,
 {
     let flow = AccessTokenFlow::prepare(Generic {
         registrar,
@@ -294,14 +318,18 @@ pub fn access_token_flow<'a, W>(registrar: &'a dyn Registrar, authorizer: &'a mu
 /// Create an ad-hoc resource flow.
 ///
 /// Since all necessary primitives are expected in the function syntax, this is guaranteed to never
-/// fail or panic, compared to preparing one with `ResourceFlow`. 
+/// fail or panic, compared to preparing one with `ResourceFlow`.
 ///
 /// But this is not as versatile and extensible, so it should be used with care.  The fact that it
 /// only takes references is a conscious choice to maintain forwards portability while encouraging
 /// the transition to custom `Endpoint` implementations instead.
-pub fn resource_flow<'a, W>(issuer: &'a mut dyn Issuer, scopes: &'a [Scope])
-    -> ResourceFlow<Resource<'a>, W>
-    where W: WebRequest, W::Response: Default
+pub fn resource_flow<'a, W>(
+    issuer: &'a mut dyn Issuer,
+    scopes: &'a [Scope],
+) -> ResourceFlow<Resource<'a>, W>
+where
+    W: WebRequest,
+    W::Response: Default,
 {
     let flow = ResourceFlow::prepare(Generic {
         registrar: Vacant,
@@ -394,7 +422,10 @@ impl<R, A, I, O, C, L> Generic<R, A, I, O, C, L> {
     /// Check, statically, that this is an endpoint for some request.
     ///
     /// This is mainly a utility method intended for compilation and integration tests.
-    pub fn assert<W: WebRequest>(self) -> Self where Self: Endpoint<W> {
+    pub fn assert<W: WebRequest>(self) -> Self
+    where
+        Self: Endpoint<W>,
+    {
         self
     }
 }
@@ -408,7 +439,9 @@ impl<W: WebRequest> Error<W> {
     /// method is still useful for frontends providing a standard error type that interacts with
     /// their web server library.
     pub fn pack<P>(self) -> P
-        where OAuthError: Into<P>, W::Error: Into<P>,
+    where
+        OAuthError: Into<P>,
+        W::Error: Into<P>,
     {
         match self {
             Error::Web(err) => err.into(),
@@ -418,8 +451,8 @@ impl<W: WebRequest> Error<W> {
 }
 
 impl<W, R, A, I, O, C, L> Endpoint<W> for Generic<R, A, I, O, C, L>
-where 
-    W: WebRequest, 
+where
+    W: WebRequest,
     R: OptRegistrar,
     A: OptAuthorizer,
     I: OptIssuer,
@@ -514,11 +547,9 @@ impl<W: WebRequest> Scopes<W> for Vacant {
 impl<W, F> OwnerSolicitor<W> for FnSolicitor<F>
 where
     W: WebRequest,
-    F: FnMut(&mut W, &PreGrant) -> OwnerConsent<W::Response>
+    F: FnMut(&mut W, &PreGrant) -> OwnerConsent<W::Response>,
 {
-    fn check_consent(&mut self, request: &mut W, grant: &PreGrant)
-        -> OwnerConsent<W::Response> 
-    {
+    fn check_consent(&mut self, request: &mut W, grant: &PreGrant) -> OwnerConsent<W::Response> {
         (self.0)(request, grant)
     }
 }
@@ -530,21 +561,27 @@ impl<W: WebRequest> OwnerSolicitor<W> for ApprovedGrant {
     /// particular, the requested scope must match exactly not only be a subset of the approved
     /// scope.
     fn check_consent(&mut self, _: &mut W, grant: &PreGrant) -> OwnerConsent<W::Response> {
-        if &self.grant == grant { 
-            OwnerConsent::Authorized(self.owner.clone()) 
+        if &self.grant == grant {
+            OwnerConsent::Authorized(self.owner.clone())
         } else {
             OwnerConsent::Denied
         }
     }
 }
 
-impl<W: WebRequest> ResponseCreator<W> for Vacant where W::Response: Default {
+impl<W: WebRequest> ResponseCreator<W> for Vacant
+where
+    W::Response: Default,
+{
     fn create(&mut self, _: &mut W, _: Template) -> W::Response {
         Default::default()
     }
 }
 
-impl<W: WebRequest, F> ResponseCreator<W> for F where F: FnMut() -> W::Response {
+impl<W: WebRequest, F> ResponseCreator<W> for F
+where
+    F: FnMut() -> W::Response,
+{
     fn create(&mut self, _: &mut W, _: Template) -> W::Response {
         self()
     }

@@ -1,4 +1,4 @@
-use super::{AuthorizationAddon, AuthorizationRequest, AccessTokenAddon, AccessTokenRequest};
+use super::{AccessTokenAddon, AccessTokenRequest, AuthorizationAddon, AuthorizationRequest};
 use super::{AddonResult, Value};
 
 pub use code_grant::extensions::Pkce;

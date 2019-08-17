@@ -9,18 +9,18 @@
 //!     - `Assertion` cryptographically verifies the integrity of a token, trading security without
 //!     persistent storage for the loss of revocability. It is thus unfit for some backends, which
 //!     is not currently expressed in the type system or with traits.
-use super::grant::{Value, Extensions, Grant};
-use super::{Url, Time};
+use super::grant::{Extensions, Grant, Value};
 use super::scope::Scope;
+use super::{Time, Url};
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use base64::{encode, decode};
+use base64::{decode, encode};
 use ring::digest::SHA256;
-use ring::rand::{SystemRandom, SecureRandom};
 use ring::hmac::SigningKey;
+use ring::rand::{SecureRandom, SystemRandom};
 use rmp_serde;
 
 /// Generic token for a specific grant.
@@ -50,7 +50,7 @@ pub trait TagGrant {
 /// succeed.
 pub struct RandomGenerator {
     random: SystemRandom,
-    len: usize
+    len: usize,
 }
 
 impl RandomGenerator {
@@ -58,13 +58,14 @@ impl RandomGenerator {
     pub fn new(length: usize) -> RandomGenerator {
         RandomGenerator {
             random: SystemRandom::new(),
-            len: length
+            len: length,
         }
     }
 
     fn generate(&self) -> String {
         let mut result = vec![0; self.len];
-        self.random.fill(result.as_mut_slice())
+        self.random
+            .fill(result.as_mut_slice())
             .expect("Failed to generate random token");
         encode(&result)
     }
@@ -134,7 +135,9 @@ impl Assertion {
 
     /// Construct an assertion instance whose tokens are only valid for the program execution.
     pub fn ephemeral() -> Self {
-        SigningKey::generate(&SHA256, &SystemRandom::new()).unwrap().into()
+        SigningKey::generate(&SHA256, &SystemRandom::new())
+            .unwrap()
+            .into()
     }
 
     /// Get a reference to generator for the given tag.
@@ -145,9 +148,10 @@ impl Assertion {
     fn extract<'a>(&self, token: &'a str) -> Result<(Grant, String), ()> {
         let decoded = decode(token).map_err(|_| ())?;
         let assertion: AssertGrant = rmp_serde::from_slice(&decoded).map_err(|_| ())?;
-        ring::hmac::verify_with_own_key(&self.secret, &assertion.0, &assertion.1).map_err(|_| ())?;
-        let (_, serde_grant, tag): (u64, SerdeAssertionGrant, String)
-            = rmp_serde::from_slice(&assertion.0).map_err(|_| ())?;
+        ring::hmac::verify_with_own_key(&self.secret, &assertion.0, &assertion.1)
+            .map_err(|_| ())?;
+        let (_, serde_grant, tag): (u64, SerdeAssertionGrant, String) =
+            rmp_serde::from_slice(&assertion.0).map_err(|_| ())?;
         Ok((serde_grant.grant(), tag))
     }
 
@@ -155,9 +159,7 @@ impl Assertion {
         ring::hmac::sign(&self.secret, data)
     }
 
-    fn counted_signature(&self, counter: u64, grant: &Grant) 
-        -> Result<String, ()>
-    {
+    fn counted_signature(&self, counter: u64, grant: &Grant) -> Result<String, ()> {
         let serde_grant = SerdeAssertionGrant::try_from(grant)?;
         let tosign = rmp_serde::to_vec(&(serde_grant, counter)).unwrap();
         let signature = self.signature(&tosign);
@@ -168,7 +170,9 @@ impl Assertion {
         let serde_grant = SerdeAssertionGrant::try_from(grant)?;
         let tosign = rmp_serde::to_vec(&(counter, serde_grant, tag)).unwrap();
         let signature = self.signature(&tosign);
-        Ok(encode(&rmp_serde::to_vec(&AssertGrant(tosign, signature.as_ref().to_vec())).unwrap()))
+        Ok(encode(
+            &rmp_serde::to_vec(&AssertGrant(tosign, signature.as_ref().to_vec())).unwrap(),
+        ))
     }
 }
 
@@ -189,22 +193,22 @@ impl<'a> TaggedAssertion<'a> {
     /// Result in an Err if either the signature is invalid or if the tag does not match the
     /// expected usage tag given to this assertion.
     pub fn extract<'b>(&self, token: &'b str) -> Result<Grant, ()> {
-        self.0.extract(token).and_then(|(token, tag)| {
-            if tag == self.1 {
-                Ok(token)
-            } else {
-                Err(())
-            }
-        })
+        self.0.extract(token).and_then(
+            |(token, tag)| {
+                if tag == self.1 {
+                    Ok(token)
+                } else {
+                    Err(())
+                }
+            },
+        )
     }
 }
 
 impl From<SigningKey> for Assertion {
     /// Convert to an `Assertion` from a secret signing key.
     fn from(secret: SigningKey) -> Self {
-        Assertion {
-            secret,
-        }
+        Assertion { secret }
     }
 }
 
@@ -244,7 +248,6 @@ impl TagGrant for Arc<RandomGenerator> {
     }
 }
 
-
 impl TagGrant for Assertion {
     fn tag(&mut self, counter: u64, grant: &Grant) -> Result<String, ()> {
         self.counted_signature(counter, grant)
@@ -269,12 +272,11 @@ impl TagGrant for Arc<Assertion> {
     }
 }
 
-
 mod scope_serde {
     use primitives::scope::Scope;
 
-    use serde::ser::{Serializer};
     use serde::de::{Deserialize, Deserializer, Error};
+    use serde::ser::Serializer;
 
     pub fn serialize<S: Serializer>(scope: &Scope, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&scope.to_string())
@@ -289,8 +291,8 @@ mod scope_serde {
 mod url_serde {
     use super::Url;
 
-    use serde::ser::{Serializer};
     use serde::de::{Deserialize, Deserializer, Error};
+    use serde::ser::Serializer;
 
     pub fn serialize<S: Serializer>(url: &Url, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(&url.to_string())
@@ -306,8 +308,8 @@ mod time_serde {
     use super::Time;
     use chrono::{TimeZone, Utc};
 
-    use serde::ser::{Serializer};
     use serde::de::{Deserialize, Deserializer};
+    use serde::ser::Serializer;
 
     pub fn serialize<S: Serializer>(time: &Time, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_i64(time.timestamp())
@@ -324,7 +326,7 @@ impl SerdeAssertionGrant {
         let mut public_extensions: HashMap<String, Option<String>> = HashMap::new();
 
         if grant.extensions.private().any(|_| true) {
-            return Err(())
+            return Err(());
         }
 
         for (name, content) in grant.extensions.public() {
@@ -366,7 +368,7 @@ mod tests {
     #[test]
     #[allow(dead_code, unused)]
     fn assert_send_sync_static() {
-        fn uses<T: Send + Sync + 'static>(arg: T) { }
+        fn uses<T: Send + Sync + 'static>(arg: T) {}
         let _ = uses(RandomGenerator::new(16));
         let fake_key = SigningKey::new(&SHA256, &[0u8; 16]);
         let _ = uses(Assertion::new(fake_key));

@@ -1,8 +1,8 @@
 extern crate reqwest;
 extern crate rouille;
-extern crate serde_urlencoded;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_urlencoded;
 
 mod generic;
 
@@ -16,7 +16,7 @@ use std::io::Read;
 
 pub fn dummy_client(request: &Request) -> Response {
     if let Some(cause) = request.get_param("error") {
-        return Response::text(format!("Error during owner authorization: {:?}", cause))
+        return Response::text(format!("Error during owner authorization: {:?}", cause));
     }
 
     let code = match request.get_param("code") {
@@ -33,7 +33,9 @@ pub fn dummy_client(request: &Request) -> Response {
     params.insert("redirect_uri", "http://localhost:8021/endpoint");
     let access_token_request = client
         .post("http://localhost:8020/token")
-        .form(&params).build().unwrap();
+        .form(&params)
+        .build()
+        .unwrap();
     let mut token_response = client.execute(access_token_request).unwrap();
     let mut token = String::new();
     token_response.read_to_string(&mut token).unwrap();
@@ -46,8 +48,12 @@ pub fn dummy_client(request: &Request) -> Response {
     // Request the page with the oauth token
     let page_request = client
         .get("http://localhost:8020/")
-        .header(header::AUTHORIZATION, "Bearer ".to_string() + token_map.get("access_token").unwrap())
-        .build().unwrap();
+        .header(
+            header::AUTHORIZATION,
+            "Bearer ".to_string() + token_map.get("access_token").unwrap(),
+        )
+        .build()
+        .unwrap();
     let mut page_response = client.execute(page_request).unwrap();
     let mut protected_page = String::new();
     page_response.read_to_string(&mut protected_page).unwrap();
@@ -67,6 +73,5 @@ pub fn dummy_client(request: &Request) -> Response {
         <article>{}</article>
         </main></html>", token, protected_page);
 
-    Response::html(display_page)
-        .with_status_code(200)
+    Response::html(display_page).with_status_code(200)
 }

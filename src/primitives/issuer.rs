@@ -4,14 +4,14 @@
 //! renewed. There exist two fundamental implementation as well, one utilizing in memory hash maps
 //! while the other uses cryptographic signing.
 use std::collections::HashMap;
-use std::sync::{MutexGuard, RwLockWriteGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{MutexGuard, RwLockWriteGuard};
 
 use chrono::{Duration, Utc};
 
-use super::Time;
+use super::generator::{Assertion, TagGrant};
 use super::grant::Grant;
-use super::generator::{TagGrant, Assertion};
+use super::Time;
 
 /// Issuers create bearer tokens.
 ///
@@ -51,7 +51,7 @@ pub struct IssuedToken {
 /// The generator is itself trait based and can be chosen during construction. It is assumed to not
 /// be possible (or at least very unlikely during their overlapping lifetime) for two different
 /// grants to generate the same token in the grant tagger.
-pub struct TokenMap<G: TagGrant=Box<dyn TagGrant + Send + Sync + 'static>> {
+pub struct TokenMap<G: TagGrant = Box<dyn TagGrant + Send + Sync + 'static>> {
     duration: Option<Duration>,
     generator: G,
     usage: u64,
@@ -127,7 +127,11 @@ impl<G: TagGrant> Issuer for TokenMap<G> {
         self.access.insert(token.clone(), grant.clone());
         self.refresh.insert(refresh.clone(), grant);
         self.usage = next_usage;
-        Ok(IssuedToken { token, refresh, until })
+        Ok(IssuedToken {
+            token,
+            refresh,
+            until,
+        })
     }
 
     fn recover_token<'a>(&'a self, token: &'a str) -> Result<Option<Grant>, ()> {
@@ -156,7 +160,7 @@ impl TokenSigner {
     /// Security notice: Never use a password alone to construct the signing key. Instead, generate
     /// a new key using a utility such as `openssl rand` that you then store away securely.
     pub fn new<S: Into<Assertion>>(secret: S) -> TokenSigner {
-        TokenSigner { 
+        TokenSigner {
             duration: None,
             signer: secret.into(),
             counter: AtomicUsize::new(0),
@@ -174,7 +178,7 @@ impl TokenSigner {
     /// # use oxide_auth::primitives::issuer::TokenSigner;
     /// TokenSigner::new(
     ///     ring::hmac::SigningKey::generate(
-    ///         &ring::digest::SHA256, 
+    ///         &ring::digest::SHA256,
     ///         &mut ring::rand::SystemRandom::new())
     ///     .unwrap());
     /// ```
@@ -268,7 +272,7 @@ impl<'s, I: Issuer + ?Sized> Issuer for RwLockWriteGuard<'s, I> {
 
 impl Issuer for TokenSigner {
     fn issue(&mut self, grant: Grant) -> Result<IssuedToken, ()> {
-        (&mut&*self).issue(grant)
+        (&mut &*self).issue(grant)
     }
 
     fn recover_token<'a>(&'a self, token: &'a str) -> Result<Option<Grant>, ()> {
@@ -309,9 +313,9 @@ impl<'a> Issuer for &'a TokenSigner {
 /// Tests for issuer implementations, including those provided here.
 pub mod tests {
     use super::*;
-    use primitives::grant::Extensions;
-    use primitives::generator::RandomGenerator;
     use chrono::{Duration, Utc};
+    use primitives::generator::RandomGenerator;
+    use primitives::grant::Extensions;
 
     /// Tests the simplest invariants that should be upheld by all authorizers.
     ///
@@ -330,9 +334,9 @@ pub mod tests {
             extensions: Extensions::new(),
         };
 
-        let issued = issuer.issue(request.clone())
-            .expect("Issuing failed");
-        let from_token = issuer.recover_token(&issued.token)
+        let issued = issuer.issue(request.clone()).expect("Issuing failed");
+        let from_token = issuer
+            .recover_token(&issued.token)
             .expect("Issuer failed during recover")
             .expect("Issued token appears to be invalid");
 
@@ -341,8 +345,7 @@ pub mod tests {
         assert_eq!(from_token.owner_id, "Owner");
         assert!(Utc::now() < from_token.until);
 
-        let issued_2 = issuer.issue(request)
-            .expect("Issuing failed");
+        let issued_2 = issuer.issue(request).expect("Issuing failed");
         assert_ne!(issued.token, issued_2.token);
         assert_ne!(issued.token, issued_2.refresh);
         assert_ne!(issued.refresh, issued_2.refresh);

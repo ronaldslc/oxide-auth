@@ -32,8 +32,7 @@ impl<'a> WebRequest for &'a Request {
 
     fn query(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
         let query = self.raw_query_string();
-        let data = serde_urlencoded::from_str(query)
-            .map_err(|_| WebError::Encoding)?;
+        let data = serde_urlencoded::from_str(query).map_err(|_| WebError::Encoding)?;
         Ok(Cow::Owned(data))
     }
 
@@ -44,8 +43,7 @@ impl<'a> WebRequest for &'a Request {
         }
 
         let body = self.data().ok_or(WebError::Encoding)?;
-        let data = serde_urlencoded::from_reader(body)
-            .map_err(|_| WebError::Encoding)?;
+        let data = serde_urlencoded::from_reader(body).map_err(|_| WebError::Encoding)?;
         Ok(Cow::Owned(data))
     }
 
@@ -64,8 +62,10 @@ impl WebResponse for Response {
 
     fn redirect(&mut self, url: Url) -> Result<(), Self::Error> {
         self.status_code = 302;
-        self.headers.retain(|header| !header.0.eq_ignore_ascii_case("Location"));
-        self.headers.push(("Location".into(), url.into_string().into()));
+        self.headers
+            .retain(|header| !header.0.eq_ignore_ascii_case("Location"));
+        self.headers
+            .push(("Location".into(), url.into_string().into()));
         Ok(())
     }
 
@@ -76,21 +76,27 @@ impl WebResponse for Response {
 
     fn unauthorized(&mut self, kind: &str) -> Result<(), Self::Error> {
         self.status_code = 401;
-        self.headers.retain(|header| !header.0.eq_ignore_ascii_case("www-authenticate"));
-        self.headers.push(("WWW-Authenticate".into(), kind.to_string().into()));
+        self.headers
+            .retain(|header| !header.0.eq_ignore_ascii_case("www-authenticate"));
+        self.headers
+            .push(("WWW-Authenticate".into(), kind.to_string().into()));
         Ok(())
     }
 
     fn body_text(&mut self, text: &str) -> Result<(), Self::Error> {
-        self.headers.retain(|header| !header.0.eq_ignore_ascii_case("Content-Type"));
-        self.headers.push(("Content-Type".into(), "text/plain".into()));
+        self.headers
+            .retain(|header| !header.0.eq_ignore_ascii_case("Content-Type"));
+        self.headers
+            .push(("Content-Type".into(), "text/plain".into()));
         self.data = ResponseBody::from_string(text);
         Ok(())
     }
 
     fn body_json(&mut self, data: &str) -> Result<(), Self::Error> {
-        self.headers.retain(|header| !header.0.eq_ignore_ascii_case("Content-Type"));
-        self.headers.push(("Content-Type".into(), "application/json".into()));
+        self.headers
+            .retain(|header| !header.0.eq_ignore_ascii_case("Content-Type"));
+        self.headers
+            .push(("Content-Type".into(), "application/json".into()));
         self.data = ResponseBody::from_string(data);
         Ok(())
     }
@@ -99,10 +105,11 @@ impl WebResponse for Response {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn multi_query() {
-        let mut request = &Request::fake_http("GET", "/authorize?fine=val&param=a&param=b", vec![], vec![]);
+        let mut request =
+            &Request::fake_http("GET", "/authorize?fine=val&param=a&param=b", vec![], vec![]);
         let query = WebRequest::query(&mut request).unwrap();
 
         assert_eq!(Some(Cow::Borrowed("val")), query.unique_value("fine"));

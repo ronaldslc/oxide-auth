@@ -2,8 +2,8 @@
 //!
 //! [rfc6749]: https://tools.ietf.org/html/rfc6749#section-6
 
-use std::fmt;
 use std::borrow::Cow;
+use std::fmt;
 use std::vec::IntoIter;
 use url::Url;
 

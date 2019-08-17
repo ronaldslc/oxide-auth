@@ -1,19 +1,19 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 
-use primitives::authorizer::Authorizer;
-use primitives::issuer::{Issuer, IssuedToken};
-use primitives::registrar::{BoundClient, ClientUrl, Registrar, RegistrarError, PreGrant};
-use primitives::scope::Scope;
-use primitives::grant::Grant;
 use endpoint::{AccessTokenFlow, AuthorizationFlow, ResourceFlow};
-use endpoint::{OwnerSolicitor, OwnerConsent, OAuthError, Scopes, WebRequest, WebResponse};
+use endpoint::{OAuthError, OwnerConsent, OwnerSolicitor, Scopes, WebRequest, WebResponse};
 use frontends::simple::endpoint::{Error as SimpleError, Generic, Vacant};
+use primitives::authorizer::Authorizer;
+use primitives::grant::Grant;
+use primitives::issuer::{IssuedToken, Issuer};
+use primitives::registrar::{BoundClient, ClientUrl, PreGrant, Registrar, RegistrarError};
+use primitives::scope::Scope;
 
 use super::message as m;
 
-use super::actix::{Addr, MailboxError, Message, Recipient};
 use super::actix::dev::RecipientRequest;
+use super::actix::{Addr, MailboxError, Message, Recipient};
 use super::futures::{Async, Future, Poll};
 use super::AsActor;
 
@@ -26,9 +26,8 @@ pub fn authorization<R, A, S, W>(
     authorizer: Addr<AsActor<A>>,
     solicitor: S,
     request: W,
-    response: W::Response
-)
-    -> Box<dyn Future<Item=W::Response, Error=W::Error> + 'static>
+    response: W::Response,
+) -> Box<dyn Future<Item = W::Response, Error = W::Error> + 'static>
 where
     R: Registrar + 'static,
     A: Authorizer + 'static,
@@ -55,9 +54,8 @@ pub fn access_token<R, A, I, W>(
     authorizer: Addr<AsActor<A>>,
     issuer: Addr<AsActor<I>>,
     request: W,
-    response: W::Response
-)
-    -> Box<dyn Future<Item=W::Response, Error=W::Error> + 'static>
+    response: W::Response,
+) -> Box<dyn Future<Item = W::Response, Error = W::Error> + 'static>
 where
     R: Registrar + 'static,
     A: Authorizer + 'static,
@@ -75,7 +73,6 @@ where
     })
 }
 
-
 /// Test resource access asynchonously against actor primitives.
 ///
 /// Due to limitiations with the underlying primitives not yet being fully written with async in
@@ -84,9 +81,8 @@ pub fn resource<I, W, C>(
     issuer: Addr<AsActor<I>>,
     scopes: C,
     request: W,
-    response: W::Response
-)
-    -> Box<dyn Future<Item=Grant, Error=ResourceProtection<W::Response>> + 'static>
+    response: W::Response,
+) -> Box<dyn Future<Item = Grant, Error = ResourceProtection<W::Response>> + 'static>
 where
     I: Issuer + 'static,
     C: Scopes<W> + 'static,
@@ -122,8 +118,8 @@ pub enum ResourceProtection<W: WebResponse> {
     Error(W::Error),
 }
 
-struct Buffer<M> 
-where 
+struct Buffer<M>
+where
     M: Message + Send + 'static,
     M::Result: Send + Clone + 'static,
 {
@@ -131,8 +127,8 @@ where
     state: BufferState<M>,
 }
 
-enum BufferState<M> 
-where 
+enum BufferState<M>
+where
     M: Message + Send + 'static,
     M::Result: Send + Clone + 'static,
 {
@@ -163,7 +159,10 @@ struct IssuerProxy {
     recover_refresh: RefCell<Buffer<m::RecoverRefresh>>,
 }
 
-struct AuthorizationFuture<W, S> where W: WebRequest {
+struct AuthorizationFuture<W, S>
+where
+    W: WebRequest,
+{
     registrar: RegistrarProxy,
     authorizer: AuthorizerProxy,
     solicitor: S,
@@ -172,7 +171,10 @@ struct AuthorizationFuture<W, S> where W: WebRequest {
     response: Option<W::Response>,
 }
 
-struct AccessTokenFuture<W> where W: WebRequest {
+struct AccessTokenFuture<W>
+where
+    W: WebRequest,
+{
     registrar: RegistrarProxy,
     authorizer: AuthorizerProxy,
     issuer: IssuerProxy,
@@ -181,7 +183,10 @@ struct AccessTokenFuture<W> where W: WebRequest {
     response: Option<W::Response>,
 }
 
-struct ResourceFuture<W, C> where W: WebRequest {
+struct ResourceFuture<W, C>
+where
+    W: WebRequest,
+{
     issuer: IssuerProxy,
     request: W,
     scopes: C,
@@ -199,8 +204,9 @@ impl<W: WebResponse> ResourceProtection<W> {
 }
 
 impl RegistrarProxy {
-    pub fn new<R>(registrar: Addr<AsActor<R>>) -> Self 
-        where R: Registrar + 'static
+    pub fn new<R>(registrar: Addr<AsActor<R>>) -> Self
+    where
+        R: Registrar + 'static,
     {
         RegistrarProxy {
             bound: RefCell::new(Buffer::new(registrar.clone().recipient())),
@@ -211,8 +217,8 @@ impl RegistrarProxy {
 
     pub fn is_waiting(&self) -> bool {
         self.bound.borrow().is_waiting()
-        || self.negotiate.borrow().is_waiting()
-        || self.check.borrow().is_waiting()
+            || self.negotiate.borrow().is_waiting()
+            || self.check.borrow().is_waiting()
     }
 
     #[allow(dead_code)]
@@ -222,7 +228,7 @@ impl RegistrarProxy {
         let cerr = self.check.borrow().error();
         berr.or(nerr).or(cerr)
     }
-    
+
     pub fn rearm(&mut self) {
         self.bound.borrow_mut().rearm();
         self.negotiate.borrow_mut().rearm();
@@ -237,7 +243,7 @@ impl Registrar for RegistrarProxy {
                 bound: ClientUrl {
                     client_id: Cow::Owned(bound.client_id.into_owned()),
                     redirect_uri: bound.redirect_uri.map(|uri| Cow::Owned(uri.into_owned())),
-                }
+                },
             };
             self.bound.borrow_mut().send(bound);
         }
@@ -256,7 +262,11 @@ impl Registrar for RegistrarProxy {
         }
     }
 
-    fn negotiate(&self, client: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        client: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         if self.negotiate.borrow().unsent() {
             let negotiate = m::Negotiate {
                 client: BoundClient {
@@ -293,8 +303,9 @@ impl Registrar for RegistrarProxy {
 }
 
 impl AuthorizerProxy {
-    pub fn new<A>(authorizer: Addr<AsActor<A>>) -> Self 
-        where A: Authorizer + 'static
+    pub fn new<A>(authorizer: Addr<AsActor<A>>) -> Self
+    where
+        A: Authorizer + 'static,
     {
         AuthorizerProxy {
             authorize: (Buffer::new(authorizer.clone().recipient())),
@@ -303,8 +314,7 @@ impl AuthorizerProxy {
     }
 
     pub fn is_waiting(&self) -> bool {
-        self.authorize.is_waiting()
-        || self.extract.is_waiting()
+        self.authorize.is_waiting() || self.extract.is_waiting()
     }
 
     #[allow(dead_code)]
@@ -313,7 +323,7 @@ impl AuthorizerProxy {
         let eerr = self.extract.error();
         aerr.or(eerr)
     }
-    
+
     pub fn rearm(&mut self) {
         self.authorize.rearm();
         self.extract.rearm();
@@ -323,9 +333,7 @@ impl AuthorizerProxy {
 impl Authorizer for AuthorizerProxy {
     fn authorize(&mut self, grant: Grant) -> Result<String, ()> {
         if self.authorize.unsent() {
-            self.authorize.send(m::Authorize {
-                grant,
-            });
+            self.authorize.send(m::Authorize { grant });
         }
 
         match self.authorize.poll() {
@@ -351,8 +359,9 @@ impl Authorizer for AuthorizerProxy {
 }
 
 impl IssuerProxy {
-    pub fn new<I>(issuer: Addr<AsActor<I>>) -> Self 
-        where I: Issuer + 'static
+    pub fn new<I>(issuer: Addr<AsActor<I>>) -> Self
+    where
+        I: Issuer + 'static,
     {
         IssuerProxy {
             issue: Buffer::new(issuer.clone().recipient()),
@@ -363,8 +372,8 @@ impl IssuerProxy {
 
     pub fn is_waiting(&self) -> bool {
         self.issue.is_waiting()
-        || self.recover_token.borrow().is_waiting()
-        || self.recover_refresh.borrow().is_waiting()
+            || self.recover_token.borrow().is_waiting()
+            || self.recover_refresh.borrow().is_waiting()
     }
 
     #[allow(dead_code)]
@@ -374,7 +383,7 @@ impl IssuerProxy {
         let rerr = self.recover_refresh.borrow().error();
         ierr.or(terr).or(rerr)
     }
-    
+
     pub fn rearm(&mut self) {
         self.issue.rearm();
         self.recover_token.borrow_mut().rearm();
@@ -385,9 +394,7 @@ impl IssuerProxy {
 impl Issuer for IssuerProxy {
     fn issue(&mut self, grant: Grant) -> Result<IssuedToken, ()> {
         if self.issue.unsent() {
-            let issue = m::Issue {
-                grant,
-            };
+            let issue = m::Issue { grant };
 
             self.issue.send(issue);
         }
@@ -435,12 +442,16 @@ impl Issuer for IssuerProxy {
 
 struct RefMutPrimitive<'a, S: 'a>(&'a mut S);
 
-impl<'a, W, S: 'a> OwnerSolicitor<&'a mut W> for RefMutPrimitive<'a, S> 
+impl<'a, W, S: 'a> OwnerSolicitor<&'a mut W> for RefMutPrimitive<'a, S>
 where
     W: WebRequest,
     S: OwnerSolicitor<W>,
 {
-    fn check_consent(&mut self, request: &mut &'a mut W, pre: &PreGrant) -> OwnerConsent<W::Response> {
+    fn check_consent(
+        &mut self,
+        request: &mut &'a mut W,
+        pre: &PreGrant,
+    ) -> OwnerConsent<W::Response> {
         self.0.check_consent(*request, pre)
     }
 }
@@ -455,8 +466,8 @@ where
     }
 }
 
-impl<W: WebRequest, S> Future for AuthorizationFuture<W, S> 
-where 
+impl<W: WebRequest, S> Future for AuthorizationFuture<W, S>
+where
     S: OwnerSolicitor<W>,
     W::Error: From<OAuthError>,
 {
@@ -472,7 +483,7 @@ where
                 issuer: Vacant,
                 solicitor: RefMutPrimitive(&mut self.solicitor),
                 scopes: Vacant,
-                response: || { response_mut.take().unwrap() },
+                response: || response_mut.take().unwrap(),
             };
 
             let mut flow = match AuthorizationFlow::prepare(endpoint) {
@@ -508,9 +519,9 @@ where
     }
 }
 
-impl<W: WebRequest> Future for AccessTokenFuture<W> 
+impl<W: WebRequest> Future for AccessTokenFuture<W>
 where
-    W::Error: From<OAuthError>
+    W::Error: From<OAuthError>,
 {
     type Item = W::Response;
     type Error = W::Error;
@@ -524,7 +535,7 @@ where
                 issuer: &mut self.issuer,
                 solicitor: Vacant,
                 scopes: Vacant,
-                response: || { response_mut.take().unwrap() },
+                response: || response_mut.take().unwrap(),
             };
 
             let mut flow = match AccessTokenFlow::prepare(endpoint) {
@@ -549,7 +560,10 @@ where
         }
 
         // Are we getting this primitive error due to a pending reply?
-        if !self.registrar.is_waiting() && !self.authorizer.is_waiting() && !self.issuer.is_waiting() {
+        if !self.registrar.is_waiting()
+            && !self.authorizer.is_waiting()
+            && !self.issuer.is_waiting()
+        {
             // No, this was fatal
             return Err(OAuthError::PrimitiveError.into());
         }
@@ -561,8 +575,8 @@ where
     }
 }
 
-impl<W: WebRequest, C> Future for ResourceFuture<W, C> 
-where 
+impl<W: WebRequest, C> Future for ResourceFuture<W, C>
+where
     C: Scopes<W>,
     W::Error: From<OAuthError>,
 {
@@ -578,7 +592,7 @@ where
                 issuer: &mut self.issuer,
                 solicitor: Vacant,
                 scopes: RefMutPrimitive(&mut self.scopes),
-                response: || { response_mut.take().unwrap() },
+                response: || response_mut.take().unwrap(),
             };
 
             let mut flow = match ResourceFlow::prepare(endpoint) {
@@ -620,8 +634,8 @@ where
     }
 }
 
-impl<M> Buffer<M> 
-where 
+impl<M> Buffer<M>
+where
     M: Message + Send + 'static,
     M::Result: Send + Clone + 'static,
 {
@@ -668,8 +682,8 @@ where
     }
 }
 
-impl<M> BufferState<M> 
-where 
+impl<M> BufferState<M>
+where
     M: Message + Send + 'static,
     M::Result: Send + Clone + 'static,
 {
@@ -700,12 +714,12 @@ where
                 Ok(Async::Ready(result)) => result,
                 Ok(Async::NotReady) => {
                     replace(self, BufferState::NotYet(inner));
-                    return Ok(Async::NotReady)
-                },
+                    return Ok(Async::NotReady);
+                }
                 Err(mb) => {
                     replace(self, BufferState::Error(mb));
-                    return Err(())
-                },
+                    return Err(());
+                }
             },
             BufferState::Received(r) => r,
             BufferState::Consumed(_) => panic!("Buffer not reamred after consume"),

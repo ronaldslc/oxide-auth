@@ -9,13 +9,13 @@ mod registrar;
 
 use super::actix::prelude::Message;
 
+use super::request::OAuthRequest as ResolvedRequest;
 use super::ResourceProtection;
-use super::request::{OAuthRequest as ResolvedRequest};
-use primitives::grant::Grant;
 use endpoint::WebRequest;
+use primitives::grant::Grant;
 
 pub use self::authorizer::{Authorize, Extract};
-pub use self::issuer::{Issue, RecoverToken, RecoverRefresh};
+pub use self::issuer::{Issue, RecoverRefresh, RecoverToken};
 pub use self::registrar::{BoundRedirect, Check, Negotiate};
 
 /// A request for an authorization code from an endpoint actor.
@@ -49,7 +49,7 @@ pub use self::registrar::{BoundRedirect, Check, Negotiate};
 /// }
 /// # }
 /// ```
-pub struct AuthorizationCode<W: WebRequest=ResolvedRequest>(pub W);
+pub struct AuthorizationCode<W: WebRequest = ResolvedRequest>(pub W);
 
 /// A request for a bearer token.
 ///
@@ -82,8 +82,7 @@ pub struct AuthorizationCode<W: WebRequest=ResolvedRequest>(pub W);
 /// }
 /// # }
 /// ```
-pub struct AccessToken<W: WebRequest=ResolvedRequest>(pub W);
-
+pub struct AccessToken<W: WebRequest = ResolvedRequest>(pub W);
 
 /// A request for a resource, utilizing a bearer token.
 ///
@@ -117,27 +116,27 @@ pub struct AccessToken<W: WebRequest=ResolvedRequest>(pub W);
 /// }
 /// # }
 /// ```
-pub struct Resource<W: WebRequest=ResolvedRequest>(pub W);
+pub struct Resource<W: WebRequest = ResolvedRequest>(pub W);
 
-impl<W: WebRequest> Message for AuthorizationCode<W> 
+impl<W: WebRequest> Message for AuthorizationCode<W>
 where
     W: Send + Sync + 'static,
-    W::Response: Send + Sync + 'static
+    W::Response: Send + Sync + 'static,
 {
     type Result = Result<W::Response, W::Error>;
 }
 
-impl<W: WebRequest> Message for AccessToken<W> 
+impl<W: WebRequest> Message for AccessToken<W>
 where
     W: Send + Sync + 'static,
-    W::Response: Send + Sync + 'static
+    W::Response: Send + Sync + 'static,
 {
     type Result = Result<W::Response, W::Error>;
 }
 
-impl<W: WebRequest> Message for Resource<W> 
+impl<W: WebRequest> Message for Resource<W>
 where
-    W: Send + Sync + 'static
+    W: Send + Sync + 'static,
 {
     type Result = Result<Grant, ResourceProtection<W::Response>>;
 }

@@ -10,13 +10,14 @@ use std::cmp;
 use std::collections::HashMap;
 use std::fmt;
 use std::iter::{Extend, FromIterator};
-use std::sync::{Arc, MutexGuard, RwLockWriteGuard};
+use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::{Arc, MutexGuard, RwLockWriteGuard};
 
-use url::Url;
-use ring::{digest, pbkdf2};
 use ring::error::Unspecified;
-use ring::rand::{SystemRandom, SecureRandom};
+use ring::rand::{SecureRandom, SystemRandom};
+use ring::{digest, pbkdf2};
+use url::Url;
 
 /// Registrars provie a way to interact with clients.
 ///
@@ -39,7 +40,11 @@ pub trait Registrar {
     ///
     /// Another common strategy is to set a default scope or return the intersection with another
     /// scope.
-    fn negotiate(&self, client: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError>;
+    fn negotiate(
+        &self,
+        client: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError>;
 
     /// Try to login as client with some authentication.
     fn check(&self, client_id: &str, passphrase: Option<&[u8]>) -> Result<(), RegistrarError>;
@@ -158,7 +163,7 @@ pub enum ClientType {
     Public,
 
     /// A confidential client who needs to be authenticated before communicating.
-    Confidential{
+    Confidential {
         /// Byte data encoding the password authentication under the used policy.
         passdata: Vec<u8>,
     },
@@ -182,24 +187,36 @@ impl fmt::Debug for ClientType {
 
 impl From<Unspecified> for RegistrarError {
     fn from(err: Unspecified) -> Self {
-        match err { Unspecified => RegistrarError::Unspecified }
+        match err {
+            Unspecified => RegistrarError::Unspecified,
+        }
     }
 }
 
 impl Client {
     /// Create a public client.
     pub fn public(client_id: &str, redirect_uri: Url, default_scope: Scope) -> Client {
-        Client { client_id: client_id.to_string(), redirect_uri, default_scope, client_type: ClientType::Public }
+        Client {
+            client_id: client_id.to_string(),
+            redirect_uri,
+            default_scope,
+            client_type: ClientType::Public,
+        }
     }
 
     /// Create a confidential client.
-    pub fn confidential(client_id: &str, redirect_uri: Url, default_scope: Scope, passphrase: &[u8]) -> Client {
+    pub fn confidential(
+        client_id: &str,
+        redirect_uri: Url,
+        default_scope: Scope,
+        passphrase: &[u8],
+    ) -> Client {
         Client {
             client_id: client_id.to_string(),
             redirect_uri,
             default_scope,
             client_type: ClientType::Confidential {
-                passdata: passphrase.to_owned()
+                passdata: passphrase.to_owned(),
             },
         }
     }
@@ -212,17 +229,18 @@ impl Client {
     pub fn encode(self, policy: &dyn PasswordPolicy) -> EncodedClient {
         let encoded_client = match self.client_type {
             ClientType::Public => ClientType::Public,
-            ClientType::Confidential { passdata: passphrase }
-                => ClientType::Confidential {
-                    passdata: policy.store(&self.client_id, &passphrase)
-                }
+            ClientType::Confidential {
+                passdata: passphrase,
+            } => ClientType::Confidential {
+                passdata: policy.store(&self.client_id, &passphrase),
+            },
         };
 
         EncodedClient {
             client_id: self.client_id,
             redirect_uri: self.redirect_uri,
             default_scope: self.default_scope,
-            encoded_client
+            encoded_client,
         }
     }
 }
@@ -233,10 +251,7 @@ impl<'a> RegisteredClient<'a> {
     /// The policy should be the same or equivalent to the policy used to create the encoded client
     /// data, as otherwise authentication will obviously not work.
     pub fn new(client: &'a EncodedClient, policy: &'a dyn PasswordPolicy) -> Self {
-        RegisteredClient {
-            client,
-            policy,
-        }
+        RegisteredClient { client, policy }
     }
 
     /// Try to authenticate with the client and passphrase. This check will success if either the
@@ -245,9 +260,13 @@ impl<'a> RegisteredClient<'a> {
     pub fn check_authentication(&self, passphrase: Option<&[u8]>) -> Result<(), Unspecified> {
         match (passphrase, &self.client.encoded_client) {
             (None, &ClientType::Public) => Ok(()),
-            (Some(provided), &ClientType::Confidential{ passdata: ref stored })
-                => self.policy.check(&self.client.client_id, provided, stored),
-            _ => Err(Unspecified)
+            (
+                Some(provided),
+                &ClientType::Confidential {
+                    passdata: ref stored,
+                },
+            ) => self.policy.check(&self.client.client_id, provided, stored),
+            _ => Err(Unspecified),
         }
     }
 }
@@ -263,7 +282,7 @@ impl cmp::PartialOrd<Self> for PreGrant {
     }
 }
 
-/// Determines how passphrases are stored and checked. 
+/// Determines how passphrases are stored and checked.
 ///
 /// The provided library implementation is based on `Pbkdf2`. Other users may prefer to write their
 /// own adaption with `Argon2`. If you do so, you could send a pull request my way.
@@ -283,14 +302,14 @@ pub trait PasswordPolicy: Send + Sync {
 pub struct Pbkdf2 {
     /// A prebuilt random, or constructing one as needed.
     random: Option<SystemRandom>,
-    iterations: u32,
+    iterations: NonZeroU32,
 }
 
 impl Default for Pbkdf2 {
     fn default() -> Self {
         Pbkdf2 {
             random: Some(SystemRandom::new()),
-            .. *PBKDF2_DEFAULTS
+            ..*PBKDF2_DEFAULTS
         }
     }
 }
@@ -299,7 +318,7 @@ impl Clone for Pbkdf2 {
     fn clone(&self) -> Self {
         Pbkdf2 {
             random: Some(SystemRandom::new()),
-            .. *self
+            ..*self
         }
     }
 }
@@ -318,8 +337,14 @@ impl Pbkdf2 {
     ///
     /// This function will panic when the `strength` is larger or equal to `32`.
     pub fn set_relative_strength(&mut self, strength: u8) {
-        assert!(strength < 32, "Strength value out of range (0-31): {}", strength);
-        self.iterations = 1u32 << strength;
+        assert!(
+            strength < 32,
+            "Strength value out of range (0-31): {}",
+            strength
+        );
+        unsafe {
+            self.iterations = NonZeroU32::new_unchecked(1u32 << strength);
+        }
     }
 
     fn salt(&self, user_identifier: &[u8]) -> Vec<u8> {
@@ -329,7 +354,8 @@ impl Pbkdf2 {
         match self.random.as_ref() {
             Some(random) => random.fill(&mut rnd_salt),
             None => SystemRandom::new().fill(&mut rnd_salt),
-        }.expect("Failed to property initialize password storage salt");
+        }
+        .expect("Failed to property initialize password storage salt");
 
         vec.extend_from_slice(user_identifier);
         vec.extend_from_slice(&rnd_salt[..]);
@@ -344,7 +370,7 @@ impl Pbkdf2 {
 // could get rid of the `Option`.
 static PBKDF2_DEFAULTS: &Pbkdf2 = &Pbkdf2 {
     random: None,
-    iterations: (1 << 16),
+    iterations: unsafe { NonZeroU32::new_unchecked(1 << 16) },
 };
 
 impl PasswordPolicy for Pbkdf2 {
@@ -353,17 +379,19 @@ impl PasswordPolicy for Pbkdf2 {
         output.append(&mut self.salt(client_id.as_bytes()));
         {
             let (output, salt) = output.split_at_mut(64);
-            pbkdf2::derive(&digest::SHA256, self.iterations, salt, passphrase,
-                output);
+            pbkdf2::derive(&digest::SHA256, self.iterations, salt, passphrase, output);
         }
         output
     }
 
-    fn check(&self, _client_id: &str /* Was interned */, passphrase: &[u8], stored: &[u8])
-        -> Result<(), Unspecified>
-    {
+    fn check(
+        &self,
+        _client_id: &str, /* Was interned */
+        passphrase: &[u8],
+        stored: &[u8],
+    ) -> Result<(), Unspecified> {
         if stored.len() < 64 {
-            return Err(Unspecified)
+            return Err(Unspecified);
         }
 
         let (verifier, salt) = stored.split_at(64);
@@ -384,7 +412,8 @@ impl ClientMap {
     /// Insert or update the client record.
     pub fn register_client(&mut self, client: Client) {
         let password_policy = Self::current_policy(&self.password_policy);
-        self.clients.insert(client.client_id.clone(), client.encode(password_policy));
+        self.clients
+            .insert(client.client_id.clone(), client.encode(password_policy));
     }
 
     /// Change how passwords are encoded while stored.
@@ -395,19 +424,27 @@ impl ClientMap {
     // This is not an instance method because it needs to borrow the box but register needs &mut
     fn current_policy<'a>(policy: &'a Option<Box<dyn PasswordPolicy>>) -> &'a dyn PasswordPolicy {
         policy
-            .as_ref().map(|boxed| &**boxed)
+            .as_ref()
+            .map(|boxed| &**boxed)
             .unwrap_or(PBKDF2_DEFAULTS)
     }
 }
 
 impl Extend<Client> for ClientMap {
-    fn extend<I>(&mut self, iter: I) where I: IntoIterator<Item=Client> {
-        iter.into_iter().for_each(|client| self.register_client(client))
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = Client>,
+    {
+        iter.into_iter()
+            .for_each(|client| self.register_client(client))
     }
 }
 
 impl FromIterator<Client> for ClientMap {
-    fn from_iter<I>(iter: I) -> Self where I: IntoIterator<Item=Client> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Client>,
+    {
         let mut into = ClientMap::new();
         into.extend(iter);
         into
@@ -419,7 +456,11 @@ impl<'s, R: Registrar + ?Sized> Registrar for &'s R {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -433,7 +474,11 @@ impl<'s, R: Registrar + ?Sized> Registrar for &'s mut R {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -447,7 +492,11 @@ impl<R: Registrar + ?Sized> Registrar for Box<R> {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -461,7 +510,11 @@ impl<R: Registrar + ?Sized> Registrar for Rc<R> {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -475,7 +528,11 @@ impl<R: Registrar + ?Sized> Registrar for Arc<R> {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -489,7 +546,11 @@ impl<'s, R: Registrar + ?Sized + 's> Registrar for MutexGuard<'s, R> {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -503,7 +564,11 @@ impl<'s, R: Registrar + ?Sized + 's> Registrar for RwLockWriteGuard<'s, R> {
         (**self).bound_redirect(bound)
     }
 
-    fn negotiate(&self, bound: BoundClient, scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
         (**self).negotiate(bound, scope)
     }
 
@@ -516,7 +581,7 @@ impl Registrar for ClientMap {
     fn bound_redirect<'a>(&self, bound: ClientUrl<'a>) -> Result<BoundClient<'a>, RegistrarError> {
         let client = match self.clients.get(bound.client_id.as_ref()) {
             None => return Err(RegistrarError::Unspecified),
-            Some(stored) => stored
+            Some(stored) => stored,
         };
 
         // Perform exact matching as motivated in the rfc
@@ -528,14 +593,21 @@ impl Registrar for ClientMap {
 
         Ok(BoundClient {
             client_id: bound.client_id,
-            redirect_uri: bound.redirect_uri.unwrap_or_else(
-                || Cow::Owned(client.redirect_uri.clone())),
+            redirect_uri: bound
+                .redirect_uri
+                .unwrap_or_else(|| Cow::Owned(client.redirect_uri.clone())),
         })
     }
 
     /// Always overrides the scope with a default scope.
-    fn negotiate(&self, bound: BoundClient, _scope: Option<Scope>) -> Result<PreGrant, RegistrarError> {
-        let client = self.clients.get(bound.client_id.as_ref())
+    fn negotiate(
+        &self,
+        bound: BoundClient,
+        _scope: Option<Scope>,
+    ) -> Result<PreGrant, RegistrarError> {
+        let client = self
+            .clients
+            .get(bound.client_id.as_ref())
             .expect("Bound client appears to not have been constructed with this registrar");
         Ok(PreGrant {
             client_id: bound.client_id.into_owned(),
@@ -547,10 +619,12 @@ impl Registrar for ClientMap {
     fn check(&self, client_id: &str, passphrase: Option<&[u8]>) -> Result<(), RegistrarError> {
         let password_policy = Self::current_policy(&self.password_policy);
 
-        self.clients.get(client_id)
+        self.clients
+            .get(client_id)
             .ok_or(Unspecified)
-            .and_then(|client| RegisteredClient::new(client, password_policy)
-                .check_authentication(passphrase))?;
+            .and_then(|client| {
+                RegisteredClient::new(client, password_policy).check_authentication(passphrase)
+            })?;
 
         Ok(())
     }
@@ -564,7 +638,7 @@ mod tests {
     pub fn simple_test_suite<Reg, RegFn>(registrar: &mut Reg, register: RegFn)
     where
         Reg: Registrar,
-        RegFn: Fn(&mut Reg, Client)
+        RegFn: Fn(&mut Reg, Client),
     {
         let public_id = "PrivateClientId";
         let client_url = "https://example.com";
@@ -572,28 +646,41 @@ mod tests {
         let private_id = "PublicClientId";
         let private_passphrase = b"WOJJCcS8WyS2aGmJK6ZADg==";
 
-        let public_client = Client::public(public_id, client_url.parse().unwrap(),
-            "default".parse().unwrap());
+        let public_client = Client::public(
+            public_id,
+            client_url.parse().unwrap(),
+            "default".parse().unwrap(),
+        );
 
         register(registrar, public_client);
 
         {
-            registrar.check(public_id, None)
+            registrar
+                .check(public_id, None)
                 .expect("Authorization of public client has changed");
-            registrar.check(public_id, Some(b""))
-                .err().expect("Authorization with password succeeded");
+            registrar
+                .check(public_id, Some(b""))
+                .err()
+                .expect("Authorization with password succeeded");
         }
 
-        let private_client = Client::confidential(private_id, client_url.parse().unwrap(),
-            "default".parse().unwrap(), private_passphrase);
+        let private_client = Client::confidential(
+            private_id,
+            client_url.parse().unwrap(),
+            "default".parse().unwrap(),
+            private_passphrase,
+        );
 
         register(registrar, private_client);
 
         {
-            registrar.check(private_id, Some(private_passphrase))
+            registrar
+                .check(private_id, Some(private_passphrase))
                 .expect("Authorization with right password did not succeed");
-            registrar.check(private_id, Some(b"Not the private passphrase"))
-                .err().expect("Authorization succeed with wrong password");
+            registrar
+                .check(private_id, Some(b"Not the private passphrase"))
+                .err()
+                .expect("Authorization succeed with wrong password");
         }
     }
 
@@ -603,8 +690,9 @@ mod tests {
         let client = Client::public(
             "ClientId",
             "https://example.com".parse().unwrap(),
-            "default".parse().unwrap()
-        ).encode(&policy);
+            "default".parse().unwrap(),
+        )
+        .encode(&policy);
         let client = RegisteredClient::new(&client, &policy);
 
         // Providing no authentication data is ok
@@ -621,12 +709,15 @@ mod tests {
             "ClientId",
             "https://example.com".parse().unwrap(),
             "default".parse().unwrap(),
-            pass
-        ).encode(&policy);
+            pass,
+        )
+        .encode(&policy);
         let client = RegisteredClient::new(&client, &policy);
         assert!(client.check_authentication(None).is_err());
         assert!(client.check_authentication(Some(pass)).is_ok());
-        assert!(client.check_authentication(Some(b"not the passphrase")).is_err());
+        assert!(client
+            .check_authentication(Some(b"not the passphrase"))
+            .is_err());
         assert!(client.check_authentication(Some(b"")).is_err());
     }
 

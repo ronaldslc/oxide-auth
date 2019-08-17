@@ -9,14 +9,14 @@ use std::borrow::Cow;
 use endpoint::{OAuthError, QueryParameter, WebRequest, WebResponse};
 use frontends::simple::endpoint::Error as SimpleError;
 
-use self::iron::{Request, Response};
 use self::iron::error::IronError;
 use self::iron::headers;
 use self::iron::status::Status;
+use self::iron::{Request, Response};
 use url::Url;
 
 /// Errors while decoding requests.
-pub enum Error { 
+pub enum Error {
     /// Generally describes a malformed request.
     BadRequest,
 }
@@ -38,7 +38,7 @@ impl<'a, 'b, 'c: 'b> WebRequest for &'a mut Request<'b, 'c> {
             .map(|ct| ct == &headers::ContentType::form_url_encoded())
             .unwrap_or(false);
         if !formatted {
-            return Err(Error::BadRequest)
+            return Err(Error::BadRequest);
         }
 
         serde_urlencoded::from_reader(&mut self.body)
@@ -58,12 +58,12 @@ impl<'a, 'b, 'c: 'b> WebRequest for &'a mut Request<'b, 'c> {
 impl WebResponse for Response {
     type Error = Error;
 
-    fn ok(&mut self) -> Result<(), Self::Error> { 
+    fn ok(&mut self) -> Result<(), Self::Error> {
         self.status = Some(Status::Ok);
         Ok(())
     }
 
-    fn redirect(&mut self, url: Url) -> Result<(), Self::Error> { 
+    fn redirect(&mut self, url: Url) -> Result<(), Self::Error> {
         self.status = Some(Status::Found);
         self.headers.set(headers::Location(url.into_string()));
         Ok(())
@@ -74,20 +74,20 @@ impl WebResponse for Response {
         Ok(())
     }
 
-    fn unauthorized(&mut self, header_value: &str) -> Result<(), Self::Error> { 
+    fn unauthorized(&mut self, header_value: &str) -> Result<(), Self::Error> {
         self.status = Some(Status::Unauthorized);
         let value_owned = header_value.as_bytes().to_vec();
         self.headers.set_raw("WWW-Authenticate", vec![value_owned]);
         Ok(())
     }
 
-    fn body_text(&mut self, text: &str) -> Result<(), Self::Error> { 
+    fn body_text(&mut self, text: &str) -> Result<(), Self::Error> {
         self.headers.set(headers::ContentType::plaintext());
         self.body = Some(Box::new(text.to_string()));
         Ok(())
     }
 
-    fn body_json(&mut self, data: &str) -> Result<(), Self::Error> { 
+    fn body_json(&mut self, data: &str) -> Result<(), Self::Error> {
         self.headers.set(headers::ContentType::json());
         self.body = Some(Box::new(data.to_string()));
         Ok(())
@@ -102,7 +102,7 @@ impl<'a, 'b, 'c: 'b> From<SimpleError<&'a mut Request<'b, 'c>>> for IronError {
             SimpleError::Web(Error::BadRequest) => OAuthError::BadRequest,
             SimpleError::OAuth(oauth) => oauth,
         };
-        
+
         let status = match as_oauth {
             OAuthError::BadRequest => Status::BadRequest,
             OAuthError::DenySilently => Status::BadRequest,

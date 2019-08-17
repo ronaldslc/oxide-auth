@@ -5,17 +5,19 @@
 //! future yielding the specific message to be sent to the endpoint.
 use std::borrow::Cow;
 
-use endpoint::{OAuthError, NormalizedParameter, PreGrant, QueryParameter, WebRequest, WebResponse};
+use endpoint::{
+    NormalizedParameter, OAuthError, PreGrant, QueryParameter, WebRequest, WebResponse,
+};
 use frontends::simple::request::{Body, Response, Status};
 
-use super::actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use super::actix_web::dev::UrlEncoded;
 use super::actix_web::http::header::{self, HeaderValue};
+use super::actix_web::{HttpMessage, HttpRequest, HttpResponse};
 use super::futures::{Async, Future, Poll};
-use super::message::{AuthorizationCode, AccessToken, Resource};
+use super::message::{AccessToken, AuthorizationCode, Resource};
 
-use url::Url;
 use super::serde_urlencoded;
+use url::Url;
 
 /// A future for all OAuth related data.
 pub struct OAuthFuture {
@@ -142,8 +144,9 @@ impl OAuthResponse {
     /// protected manner to the authenticated resource owner. When the resource owner is not
     /// currently authenticated (i.e.  logged in), this is a good opportunity to redirect to such a
     /// login page.
-    pub fn get_or_consent_with<F>(self, f: F) -> HttpResponse 
-        where F: FnOnce(PreGrant) -> HttpResponse 
+    pub fn get_or_consent_with<F>(self, f: F) -> HttpResponse
+    where
+        F: FnOnce(PreGrant) -> HttpResponse,
     {
         match self.inner {
             ResponseKind::Inner(inner) => Self::convert(inner),
@@ -164,19 +167,22 @@ impl OAuthResponse {
         }
 
         if let Some(auth) = &response.www_authenticate {
-            builder.header(header::WWW_AUTHENTICATE, HeaderValue::from_str(auth).unwrap());
+            builder.header(
+                header::WWW_AUTHENTICATE,
+                HeaderValue::from_str(auth).unwrap(),
+            );
         }
 
         match response.body {
             Some(Body::Text(text)) => {
                 builder.content_type("text/plain");
                 builder.body(text)
-            },
+            }
             Some(Body::Json(text)) => {
                 builder.content_type("application/json");
                 builder.body(text)
-            },
-            None => builder.finish() ,
+            }
+            None => builder.finish(),
         }
     }
 }
@@ -189,7 +195,7 @@ impl ResponseKind {
             ResponseKind::ConsentForm(_) => {
                 *self = ResponseKind::Inner(Response::default());
                 self.transform()
-            },
+            }
         }
     }
 }
@@ -213,7 +219,9 @@ impl Future for OAuthFuture {
             Some(Err(_)) => Err(()),
         };
 
-        let auth = self.inner.headers()
+        let auth = self
+            .inner
+            .headers()
             .get(header::AUTHORIZATION)
             .map(|header| header.to_str().map(str::to_string));
 
@@ -223,11 +231,7 @@ impl Future for OAuthFuture {
             None => Ok(None),
         };
 
-        Ok(Async::Ready(OAuthRequest {
-            query,
-            auth,
-            body,
-        }))
+        Ok(Async::Ready(OAuthRequest { query, auth, body }))
     }
 }
 
@@ -241,25 +245,27 @@ impl WebRequest for OAuthRequest {
     type Error = OAuthError;
     type Response = OAuthResponse;
 
-     fn query(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
-         self.query.as_ref()
-             .map(|query| Cow::Borrowed(query as &dyn QueryParameter))
-             .map_err(|_| OAuthError::BadRequest)
-     }
+    fn query(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
+        self.query
+            .as_ref()
+            .map(|query| Cow::Borrowed(query as &dyn QueryParameter))
+            .map_err(|_| OAuthError::BadRequest)
+    }
 
-     fn urlbody(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
-         self.body.as_ref()
-             .map(|body| Cow::Borrowed(body as &dyn QueryParameter))
-             .map_err(|_| OAuthError::BadRequest)
-     }
+    fn urlbody(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
+        self.body
+            .as_ref()
+            .map(|body| Cow::Borrowed(body as &dyn QueryParameter))
+            .map_err(|_| OAuthError::BadRequest)
+    }
 
-     fn authheader(&mut self) -> Result<Option<Cow<str>>, Self::Error>{
-         match &self.auth {
-             Ok(Some(string)) => Ok(Some(Cow::Borrowed(string))),
-             Ok(None) => Ok(None),
-             Err(_) => Err(OAuthError::BadRequest)
-         }
-     }
+    fn authheader(&mut self) -> Result<Option<Cow<str>>, Self::Error> {
+        match &self.auth {
+            Ok(Some(string)) => Ok(Some(Cow::Borrowed(string))),
+            Ok(None) => Ok(None),
+            Err(_) => Err(OAuthError::BadRequest),
+        }
+    }
 }
 
 impl WebResponse for OAuthResponse {
@@ -270,23 +276,38 @@ impl WebResponse for OAuthResponse {
     }
 
     fn redirect(&mut self, url: Url) -> Result<(), Self::Error> {
-        self.inner.transform().redirect(url).map_err(|err| match err {})
+        self.inner
+            .transform()
+            .redirect(url)
+            .map_err(|err| match err {})
     }
 
     fn client_error(&mut self) -> Result<(), Self::Error> {
-        self.inner.transform().client_error().map_err(|err| match err {})
+        self.inner
+            .transform()
+            .client_error()
+            .map_err(|err| match err {})
     }
 
     fn unauthorized(&mut self, kind: &str) -> Result<(), Self::Error> {
-        self.inner.transform().unauthorized(kind).map_err(|err| match err {})
+        self.inner
+            .transform()
+            .unauthorized(kind)
+            .map_err(|err| match err {})
     }
 
     fn body_text(&mut self, text: &str) -> Result<(), Self::Error> {
-        self.inner.transform().body_text(text).map_err(|err| match err {})
+        self.inner
+            .transform()
+            .body_text(text)
+            .map_err(|err| match err {})
     }
 
     fn body_json(&mut self, data: &str) -> Result<(), Self::Error> {
-        self.inner.transform().body_json(data).map_err(|err| match err {})
+        self.inner
+            .transform()
+            .body_json(data)
+            .map_err(|err| match err {})
     }
 }
 
@@ -296,8 +317,8 @@ mod tests {
 
     #[allow(dead_code)]
     fn is_send_sync() {
-        trait Test: Send + Sync + 'static { }
-        impl Test for OAuthRequest { }
-        impl Test for OAuthResponse { }
+        trait Test: Send + Sync + 'static {}
+        impl Test for OAuthRequest {}
+        impl Test for OAuthResponse {}
     }
 }

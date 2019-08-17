@@ -1,5 +1,5 @@
-use primitives::issuer::{Issuer, IssuedToken};
 use primitives::grant::Grant;
+use primitives::issuer::{IssuedToken, Issuer};
 
 use super::super::actix::{Handler, Message};
 use super::super::AsActor;
@@ -44,9 +44,8 @@ impl<I: Issuer + 'static> Handler<Issue> for AsActor<I> {
     }
 }
 
-
 impl<I: Issuer + 'static> Handler<RecoverToken> for AsActor<I> {
-    type Result = Result<Option<Grant>, ()>; 
+    type Result = Result<Option<Grant>, ()>;
 
     fn handle(&mut self, msg: RecoverToken, _: &mut Self::Context) -> Self::Result {
         self.0.recover_token(&msg.token)
@@ -54,7 +53,7 @@ impl<I: Issuer + 'static> Handler<RecoverToken> for AsActor<I> {
 }
 
 impl<I: Issuer + 'static> Handler<RecoverRefresh> for AsActor<I> {
-    type Result = Result<Option<Grant>, ()>; 
+    type Result = Result<Option<Grant>, ()>;
 
     fn handle(&mut self, msg: RecoverRefresh, _: &mut Self::Context) -> Self::Result {
         self.0.recover_refresh(&msg.token)

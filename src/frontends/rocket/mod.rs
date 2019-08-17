@@ -7,19 +7,19 @@ mod failure;
 use std::io::Cursor;
 use std::marker::PhantomData;
 
-use self::rocket::{Data, Request, Response};
-use self::rocket::http::{ContentType, Status};
 use self::rocket::http::hyper::header;
+use self::rocket::http::{ContentType, Status};
+use self::rocket::outcome::Outcome;
 use self::rocket::request::FromRequest;
 use self::rocket::response::{self, Responder};
-use self::rocket::outcome::Outcome;
+use self::rocket::{Data, Request, Response};
 
 use endpoint::{NormalizedParameter, WebRequest, WebResponse};
 use frontends::dev::*;
 
+pub use self::failure::OAuthFailure;
 pub use frontends::simple::endpoint::Generic;
 pub use frontends::simple::request::NoError;
-pub use self::failure::OAuthFailure;
 
 /// Request guard that also buffers OAuth data internally.
 ///
@@ -118,7 +118,7 @@ impl<'r> WebRequest for OAuthRequest<'r> {
         }
     }
 
-    fn urlbody(&mut self) ->  Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
+    fn urlbody(&mut self) -> Result<Cow<dyn QueryParameter + 'static>, Self::Error> {
         match self.body.as_ref() {
             Ok(None) => Err(WebError::BodyNeeded),
             Ok(Some(body)) => Ok(Cow::Borrowed(body as &dyn QueryParameter)),
